@@ -28,7 +28,7 @@ Append this optional line after the existing settings in `param.in`:
 ```
 
 The choices are `cpu` (default), `cuda`, and `auto`. CUDA supports the general
-`BS`, conservative `BS2`, `RADAU`, and `MVS` algorithms, massive bodies in `big.in`, and massless or semi-active bodies in
+`BS`, conservative `BS2`, `RADAU`, `MVS`, and `HYBRID` algorithms, massive bodies in `big.in`, and massless or semi-active bodies in
 `small.in`. Small bodies can perturb big bodies but never one another. It includes Newtonian gravity, central J2/J4/J6, solar 1PN, the
 preserved PR prescription, and A1/A2/A3. A customized `mfo_user` requires CPU.
 Explicit CUDA requests fail clearly for unsupported cases. `auto` chooses CUDA
@@ -38,21 +38,42 @@ heuristic, not a measured crossover for every system.
 
 ## Algorithm support
 
-BS, BS2, RADAU, and MVS have resident CUDA timesteppers. MVS retains the original
-Kepler solver, Jacobi transforms, fixed steps, and output correctors; corrected
-output is computed on scratch arrays without modifying the integration state.
-MVS requires massless small bodies. The legacy TEST selector uses the MVS stepper
-with the original identity input/output conversions.
+| Selector | CUDA work | Restrictions / assessment |
+| --- | --- | --- |
+| BS | Midpoint stages, polynomial extrapolation, shared error reduction | General forces; massive and semi-active small bodies supported |
+| BS2 | Conservative position recurrence and extrapolation | Same conservative-force restrictions as CPU |
+| RADAU | Stage prediction, divided differences, persistent coefficients, error reduction | General forces; original shared adaptive controller |
+| MVS | Jacobi transforms, Kepler drifts, kicks, output corrector | Small bodies must be massless, as on CPU |
+| HYBRID | Democratic-heliocentric drift/kick map, encounter selection, compact BS2 stages | Original changeover function and shared encounter timestep; collisions resolved in Fortran |
+| TEST | MVS stepping with identity boundary transforms | Legacy diagnostic selector, not a separate production integrator |
+| Close/wide binary | Unavailable | This distribution lacks their CPU drivers. A GPU port cannot be provided without first implementing and validating those methods. |
+| Custom `mfo_user` | CPU only | Arbitrary Fortran cannot be invoked from a CUDA kernel. A matching device implementation and regression tests are required for each custom force. |
 
-HYBRID remains CPU-only pending its encounter-subsystem port. Close- and
-wide-binary selectors have no implemented drivers in this distribution. A
-custom Fortran `mfo_user` requires CPU; it cannot automatically run as device code.
+All implemented production algorithms have CUDA paths. No production method was
+found intrinsically unsuitable for GPU execution; profitability depends on the
+workload. The binary selectors are missing implementations, not evidence of a
+fundamental GPU limitation.
+
+MVS retains the original Kepler solver and output corrector. Corrected output
+uses scratch arrays without modifying the live integration state. HYBRID keeps
+the regular system resident, restores only encounter members after the tentative
+Kepler drift, and integrates that compact subsystem in a separate CUDA BS2
+workspace. Compact encounter endpoints return to Fortran each substep for the
+original event and merger handling. This transfer and launch overhead can make
+small encounter groups slower on a GPU. Arbitrary collision logic and file I/O
+remain on the CPU.
+
+The implementation sequence was shared force/mass semantics, BS2, RADAU, MVS,
+then HYBRID. Each port retains its original recurrence and controller rather than
+substituting a different integrator. Future optimization should focus on measured
+launch overhead, encounter transfers, and large massive-body reductions; changes
+to precision or the integration method need separate accuracy studies.
 
 The GPU retains the BS midpoint stages, extrapolation table, error reductions,
 and encounter screening between accepted steps. The CPU retains scheduling,
 files, synchronization of different input epochs, and collision/ejection
-resolution. State transfers occur for output, dumps, periodic checks, and
-actual collisions. The original shared adaptive timestep and tolerance test
+resolution. State transfers occur for output, dumps, periodic checks, actual collisions,
+and compact HYBRID encounter substeps. The original shared adaptive timestep and tolerance test
 are retained: one difficult orbit can limit the entire ensemble.
 
 Body capacity is counted from the input before allocating arrays. The original
@@ -151,7 +172,8 @@ should not be interpreted as a conserved-energy error under these extra forces.
 the user's input files. Tests cover analytic force values, byte-for-byte PR
 preservation, CPU/CUDA force and trajectory comparisons, reverse integration,
 round trips, off-grid preparation, relativistic precession, secular A2 drift,
-restart files, postprocessing, collisions, ejections, and 4100 simultaneous
+CPU/CUDA restart switching across all five production algorithms, postprocessing,
+collisions, ejections, and 4100 simultaneous
 encounter records. GPU tests skip when CUDA is unavailable. `make test-debug` runs the same tests
 with Fortran bounds and runtime checks in a separate build directory.
 

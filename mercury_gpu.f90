@@ -11,6 +11,32 @@ module mercury_gpu
   end type
   type(gpu_event), pointer :: events(:)=>null()
   interface
+    integer(c_int) function hybrid_begin(h,crit,flag,cap,ce,nce,pi,pj,x,v,nf) bind(C,name="mercury_cuda_hybrid_begin")
+      import
+      real(c_double),value :: h
+      integer(c_int),value :: flag,cap
+      real(c_double) :: crit(*),x(*),v(*)
+      integer(c_int) :: ce(*),nce,pi(*),pj(*)
+      integer(c_int64_t) :: nf
+    end function
+    integer(c_int) function hybrid_finish(h,m,x,v,nf) bind(C,name="mercury_cuda_hybrid_finish")
+      import
+      real(c_double),value :: h
+      real(c_double) :: m(*),x(*),v(*)
+      integer(c_int64_t) :: nf
+    end function
+    integer(c_int) function encounter_enter(n,nb,m,x,v,crit,rce,rphys,np,pi,pj) bind(C,name="mercury_cuda_encounter_enter")
+      import
+      integer(c_int),value :: n,nb,np
+      real(c_double) :: m(*),x(*),v(*),crit(*),rce(*),rphys(*)
+      integer(c_int) :: pi(*),pj(*)
+    end function
+    integer(c_int) function encounter_update(m,x,v) bind(C,name="mercury_cuda_encounter_update")
+      import
+      real(c_double) :: m(*),x(*),v(*)
+    end function
+    subroutine encounter_exit() bind(C,name="mercury_cuda_encounter_exit")
+    end subroutine
     integer(c_int) function configure(algorithm) bind(C,name="mercury_cuda_configure")
       import
       integer(c_int),value :: algorithm
@@ -54,13 +80,35 @@ module mercury_gpu
     end subroutine
   end interface
 contains
+  subroutine gpu_hybrid_begin(h,crit,flag,cap,ce,nce,pi,pj,x,v)
+    real(8) :: h,crit(*),x(3,*),v(3,*)
+    integer :: flag,cap,ce(*),nce,pi(*),pj(*)
+    integer(c_int64_t) :: nf
+    if(hybrid_begin(h,crit,flag,cap,ce,nce,pi,pj,x,v,nf)/=0) call fail('CUDA hybrid drift failed')
+    force_calls=force_calls+nf
+    flag=2
+  end subroutine
+  subroutine gpu_hybrid_finish(h,m,x,v)
+    real(8) :: h,m(*),x(3,*),v(3,*)
+    integer(c_int64_t) :: nf
+    if(hybrid_finish(h,m,x,v,nf)/=0) call fail('CUDA hybrid kick failed')
+    force_calls=force_calls+nf
+    host_current=.false.
+  end subroutine
+  subroutine gpu_refresh_events(time,h,rcen)
+    real(8) :: time,h,rcen
+    type(c_ptr) :: ptr
+    if(find_events(time,h,rcen,ptr,event_size)/=0) call fail('CUDA event refresh failed')
+    nullify(events)
+    if(event_size>0) call c_f_pointer(ptr,events,[event_size])
+  end subroutine
   subroutine gpu_select(algor,n,nbig,m,opt,unit)
     integer,intent(in) :: algor,n,nbig,opt(8),unit
     real(8),intent(in) :: m(n)
     logical :: supported
-    supported=(algor==1.or.algor==2.or.algor==3.or.algor==4.or.algor==9).and.opt(8)==0
+    supported=(algor==1.or.algor==2.or.algor==3.or.algor==4.or.algor==9.or.algor==10).and.opt(8)==0
     if(backend_request==1.and..not.supported) &
-      call fail('CUDA requires MVS/BS/BS2/RADAU and user-defined force = no')
+      call fail('CUDA requires MVS/BS/BS2/RADAU/HYBRID and user-defined force = no')
     if(backend_request==1.and.available()==0) call fail('CUDA was requested but no CUDA device/build is available')
     gpu_enabled=backend_request/=0.and.supported.and.available()/=0
     if(backend_request==2.and.n-nbig<4096) gpu_enabled=.false.

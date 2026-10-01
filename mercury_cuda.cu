@@ -13,7 +13,7 @@ constexpr double K2=2.959122082855911e-4;
 constexpr double C_PN=299792458.0*86400.0/1.495978707e11;
 // Preserve the original Fortran assignment c = 173.1 (default REAL literal).
 constexpr double C_PR=static_cast<double>(173.1f);
-struct Config { int n,nbig,ngflag; double mu,j2,j4,j6; } cfg;
+struct Config { int n,nbig,nmass,ngflag; double mu,j2,j4,j6; } cfg;
 bool pn_enabled=false;
 int algorithm=2;
 int capacity=0,event_capacity=0;
@@ -27,6 +27,10 @@ MercuryEvent *device_events=nullptr;
 std::vector<MercuryEvent> host_events;
 std::vector<void*> allocations;
 int64_t nforces=0;
+double* critical=nullptr;
+bool encounter_mode=false;
+int *pair_i=nullptr,*pair_j=nullptr,pair_count=0,pair_capacity=0;
+void encounter_force(const double*,const double*,double*);
 
 void check(cudaError_t code) {
     if(code!=cudaSuccess) throw std::runtime_error(cudaGetErrorString(code));
@@ -61,7 +65,7 @@ __device__ void obl(Config c,const double r[3],double inv,double a[3]) {
 __global__ void indirect_force(Config c,const double* pos,const double* m,double* result) {
     if(threadIdx.x||blockIdx.x) return;
     double out[3]={0,0,0};
-    for(int j=1;j<c.n;j++) {
+    for(int j=1;j<c.nmass;j++) {
         if(m[j]==0) continue;
         double r[3]={pos[j],pos[c.n+j],pos[2*c.n+j]};
         double inv=1.0/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
@@ -118,7 +122,7 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
     double a[3]={0,0,0};
     // Big bodies feel small-body back-reaction. Small bodies never feel
     // other small bodies, matching mfo_grav (including semi-active inputs).
-    for(int i=1;i<(j<c.nbig?c.n:c.nbig);i++) {
+    for(int i=1;i<(j<c.nbig?c.nmass:c.nbig);i++) {
         if(i==j||m[i]==0) continue;
         double dx=pos[i]-r[0],dy=pos[c.n+i]-r[1],dz=pos[2*c.n+i]-r[2];
         double d2=dx*dx+dy*dy+dz*dz;
@@ -148,6 +152,7 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
     }
 }
 void force(const double* xx,const double* vv,double* aa) {
+    if(encounter_mode) { encounter_force(xx,vv,aa); return; }
     indirect_force<<<1,1>>>(cfg,xx,mass,indirect);
     if(pn_enabled) force_kernel<true><<<blocks(cfg.n),THREADS>>>(cfg,xx,vv,mass,ngf,indirect,aa,fault);
     else force_kernel<false><<<blocks(cfg.n),THREADS>>>(cfg,xx,vv,mass,ngf,indirect,aa,fault);
@@ -316,19 +321,22 @@ void download_array(const double* source,double* target) {
     layout<<<blocks(cfg.n),THREADS>>>(cfg.n,source,transfer,3,0);
     check(cudaMemcpy(target,transfer,size_t(3)*cfg.n*sizeof(double),cudaMemcpyDeviceToHost));
 }
+#include "mercury_cuda_hybrid.cuh"
 } // namespace
 
 extern "C" int mercury_cuda_available() {
     int n=0; return cudaGetDeviceCount(&n)==cudaSuccess&&n>0;
 }
 extern "C" void mercury_cuda_free() {
+    free_other_context();
+    pair_capacity=0; encounter_mode=false;
     for(void* p:allocations) cudaFree(p);
     allocations.clear();
     if(device_events) cudaFree(device_events);
     device_events=nullptr; capacity=0; event_capacity=0; host_events.clear();
 }
 extern "C" int mercury_cuda_configure(int method) {
-    if(method!=1&&method!=2&&method!=3&&method!=4&&method!=9) return 1;
+    if(method!=1&&method!=2&&method!=3&&method!=4&&method!=9&&method!=10) return 1;
     if(method!=algorithm) mercury_cuda_free();
     algorithm=method;
     try { if(method==4) initialize_radau(); }
@@ -347,14 +355,17 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
             for(double** p:{&x,&v,&oldx,&oldv,&wx,&wv,&ex,&ev,&acc,&acc0}) allocate(*p,size_t(3)*n);
             allocate(table,size_t(algorithm==3?72:algorithm==4?63:48)*n); allocate(scale,size_t(2)*n);
             allocate(mass,n); allocate(ngf,size_t(4)*n); allocate(rce,n); allocate(rphys,n);
-            allocate(boxes,size_t(4)*n); allocate(transfer,size_t(4)*n);
+            allocate(boxes,size_t(4)*n); allocate(transfer,size_t(6)*n);
             allocate(partial,blocks(n)); allocate(maximum,1); allocate(indirect,3);
             allocate(fault,1); allocate(event_count,1); reserve_events(4096);
-            if(algorithm==1||algorithm==9) allocate(sym,size_t(18)*n);
+            if(algorithm==1||algorithm==9||algorithm==10) allocate(sym,size_t(18)*n);
+            if(algorithm==3||algorithm==10) allocate(critical,n);
+            if(algorithm==10) allocate(selected_device,n);
             capacity=n;
         }
         ra_reset=true; sym_reset=true;
-        cfg={n,nbig,ngflag,m[0],jcen[0],jcen[1],jcen[2]}; pn_enabled=pn!=0;
+        int nmass=nbig; for(int j=nbig;j<n;j++) if(m[j]!=0) nmass=j+1;
+        cfg={n,nbig,nmass,ngflag,m[0],jcen[0],jcen[1],jcen[2]}; pn_enabled=pn!=0;
         check(cudaMemcpy(mass,m,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rce,limits,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rphys,radii,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
@@ -426,12 +437,14 @@ extern "C" int mercury_cuda_download(double* xx,double* vv,int previous) {
 extern "C" int mercury_cuda_events(double time,double h,double radius,const MercuryEvent** result,int* count) {
     try {
         bool mvs=algorithm==1||algorithm==9;
+        const double* central_v=v;
+        if(algorithm==10) { physical_velocity(v,sym+15*cfg.n); central_v=sym+15*cfg.n; }
         const double *px=mvs?sym:oldx,*pv=mvs?sym+3*cfg.n:oldv,*fv=mvs?sym+6*cfg.n:v;
         bounding_boxes<<<blocks(cfg.n),THREADS>>>(cfg.n,h,px,pv,x,fv,rce,boxes);
         for(;;) {
             check(cudaMemset(event_count,0,sizeof(int)));
-            pair_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,px,pv,x,fv,mass,rce,rphys,boxes,event_capacity,event_count,device_events);
-            central_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,radius,oldx,oldv,x,v,mass,event_capacity,event_count,device_events);
+            if(algorithm!=10) pair_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,px,pv,x,fv,mass,rce,rphys,boxes,event_capacity,event_count,device_events);
+            central_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,radius,oldx,oldv,x,central_v,mass,event_capacity,event_count,device_events);
             check(cudaMemcpy(count,event_count,sizeof(int),cudaMemcpyDeviceToHost));
             if(*count<=event_capacity) break;
             reserve_events(*count); // repeat screening after growth; nothing is dropped
@@ -456,7 +469,10 @@ extern "C" int mercury_cuda_force(double* aa) {
 
 extern "C" int mercury_cuda_export(double h,int physical,double* xx,double* vv) {
     try {
-        if(physical&&algorithm==1) {
+        if(physical&&algorithm==10) {
+            physical_velocity(v,sym+15*cfg.n);
+            download_array(x,xx); download_array(sym+15*cfg.n,vv);
+        } else if(physical&&algorithm==1) {
             copy_vector(sym+12*cfg.n,x); copy_vector(sym+15*cfg.n,v);
             corrector(sym+12*cfg.n,sym+15*cfg.n,h,false);
             download_array(sym+12*cfg.n,xx); download_array(sym+15*cfg.n,vv);
@@ -466,3 +482,87 @@ extern "C" int mercury_cuda_export(double h,int physical,double* xx,double* vv) 
         return 0;
     } catch(const std::exception& e) { return error(e); }
 }
+
+extern "C" int mercury_cuda_hybrid_begin(double h,const double* crit,int flag,int cap,
+    int* ce,int* count,int* pi,int* pj,double* xx,double* vv,int64_t* forces) {
+    try {
+        int64_t before=nforces; int n=cfg.n;
+        check(cudaMemset(fault,0,sizeof(int)));
+        if(flag!=2||sym_reset) {
+            check(cudaMemcpy(critical,crit,n*sizeof(double),cudaMemcpyHostToDevice));
+            regular_hybrid_force();
+        }
+        copy_vector(oldx,x); physical_velocity(v,oldv);
+        kick<<<blocks(3*n),THREADS>>>(n,h*.5,sym+9*n,v);
+        solar_drift(h*.5); copy_vector(sym,x); copy_vector(sym+3*n,v);
+        kepler_drift<<<blocks(n),THREADS>>>(cfg,h,mass,x,v,wx,wv,0,fault);
+        bounding_boxes<<<blocks(n),THREADS>>>(n,h,sym,sym+3*n,x,v,critical,boxes);
+        for(;;) {
+            check(cudaMemset(event_count,0,sizeof(int)));
+            sniff<<<blocks(n),THREADS>>>(cfg,h,sym,sym+3*n,x,v,critical,boxes,event_capacity,event_count,device_events);
+            check(cudaMemcpy(count,event_count,sizeof(int),cudaMemcpyDeviceToHost));
+            if(*count<=event_capacity) break;
+            reserve_events(*count);
+        }
+        if(*count>cap) throw std::runtime_error("Hybrid encounter capacity exceeded");
+        host_events.resize(*count);
+        if(*count) check(cudaMemcpy(host_events.data(),device_events,*count*sizeof(MercuryEvent),cudaMemcpyDeviceToHost));
+        std::sort(host_events.begin(),host_events.end(),[](const MercuryEvent& a,const MercuryEvent& b){return a.i<b.i||(a.i==b.i&&a.j<b.j);});
+        selected.clear();
+        if(*count) {
+            std::fill(ce,ce+n,0);
+            for(int k=0;k<*count;k++) { auto e=host_events[k]; pi[k]=e.i+1; pj[k]=e.j+1; ce[e.i]=ce[e.j]=2; }
+            for(int j=1;j<n;j++) if(ce[j]) selected.push_back(j);
+            int ns=selected.size(); packed.resize(6*ns);
+            check(cudaMemcpy(selected_device,selected.data(),ns*sizeof(int),cudaMemcpyHostToDevice));
+            selected_states<<<blocks(ns),THREADS>>>(n,ns,selected_device,x,v,transfer,0,x,v,sym,sym+3*n);
+            check(cudaMemcpy(packed.data(),transfer,packed.size()*sizeof(double),cudaMemcpyDeviceToHost));
+            for(int a=0;a<ns;a++) for(int k=0;k<3;k++) { xx[3*selected[a]+k]=packed[6*a+k]; vv[3*selected[a]+k]=packed[6*a+3+k]; }
+        }
+        int bad; check(cudaMemcpy(&bad,fault,sizeof(int),cudaMemcpyDeviceToHost));
+        if(bad) throw std::runtime_error("Hybrid Kepler drift or force failed");
+        *forces=nforces-before; return 0;
+    } catch(const std::exception& e) { return error(e); }
+}
+extern "C" int mercury_cuda_hybrid_finish(double h,const double* m,const double* xx,const double* vv,int64_t* forces) {
+    try {
+        int64_t before=nforces; int ns=selected.size(),n=cfg.n;
+        if(ns) {
+            for(int a=0;a<ns;a++) for(int k=0;k<3;k++) { packed[6*a+k]=xx[3*selected[a]+k]; packed[6*a+3+k]=vv[3*selected[a]+k]; }
+            check(cudaMemcpy(transfer,packed.data(),packed.size()*sizeof(double),cudaMemcpyHostToDevice));
+            selected_states<<<blocks(ns),THREADS>>>(n,ns,selected_device,x,v,transfer,1,x,v,sym,sym+3*n);
+            check(cudaMemcpy(mass,m,n*sizeof(double),cudaMemcpyHostToDevice));
+        }
+        solar_drift(h*.5); regular_hybrid_force();
+        kick<<<blocks(3*n),THREADS>>>(n,h*.5,sym+9*n,v);
+        sym_reset=false;
+        int bad; check(cudaMemcpy(&bad,fault,sizeof(int),cudaMemcpyDeviceToHost));
+        if(bad) throw std::runtime_error("Hybrid final force failed");
+        *forces=nforces-before; return 0;
+    } catch(const std::exception& e) { return error(e); }
+}
+extern "C" int mercury_cuda_encounter_enter(int n,int nb,const double* m,const double* xx,const double* vv,
+    const double* crit,const double* limits,const double* radii,int np,const int* pi,const int* pj) {
+    try {
+        encounter_active=true; other_context.exchange();
+        if(mercury_cuda_configure(3)) throw std::runtime_error("Encounter configure failed");
+        std::vector<double> zero(4*n,0); double jc[3]={0,0,0};
+        if(mercury_cuda_upload(n,nb,0,0,m,xx,vv,zero.data(),jc,limits,radii)) throw std::runtime_error("Encounter upload failed");
+        encounter_mode=true;
+        check(cudaMemcpy(critical,crit,n*sizeof(double),cudaMemcpyHostToDevice));
+        if(np>pair_capacity) { allocate(pair_i,np); allocate(pair_j,np); pair_capacity=np; }
+        std::vector<int> ids(np);
+        for(int k=0;k<np;k++) ids[k]=pi[k]-1;
+        check(cudaMemcpy(pair_i,ids.data(),np*sizeof(int),cudaMemcpyHostToDevice));
+        for(int k=0;k<np;k++) ids[k]=pj[k]-1;
+        check(cudaMemcpy(pair_j,ids.data(),np*sizeof(int),cudaMemcpyHostToDevice));
+        pair_count=np; return 0;
+    } catch(const std::exception& e) { return error(e); }
+}
+extern "C" int mercury_cuda_encounter_update(const double* m,const double* xx,const double* vv) {
+    try {
+        check(cudaMemcpy(mass,m,cfg.n*sizeof(double),cudaMemcpyHostToDevice));
+        upload_array(xx,x,3); upload_array(vv,v,3); return 0;
+    } catch(const std::exception& e) { return error(e); }
+}
+extern "C" void mercury_cuda_encounter_exit() { other_context.exchange(); encounter_active=false; }

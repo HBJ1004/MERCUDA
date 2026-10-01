@@ -52,6 +52,21 @@ class Edges(unittest.TestCase):
         self.assertState(dump(p),dump(reference),tol=1e-10)
         self.assertIn('Execution backend: CUDA',(p/'info.out').read_text())
 
+    def test_restart_all_algorithms(self):
+        if load_gpu() is None: self.skipTest('CUDA unavailable')
+        for algorithm in ['BS','BS2','RADAU','MVS','HYBRID']:
+            for first,second in [('cpu','cuda'),('cuda','cpu')]:
+                with self.subTest(algorithm=algorithm,first=first):
+                    p=self.case(algorithm+first,algorithm=algorithm,backend=first,
+                                small=[body()],stop=8,step=.5,interval=2)
+                    (p/'param.dmp').write_text(re.sub(r'(stop time.*?=)\s*[^\n]+',
+                        r'\g<1> 16',(p/'param.dmp').read_text(),flags=re.I))
+                    (p/'param.in').write_text((p/'param.in').read_text().replace('backend = '+first,'backend = '+second))
+                    run(p)
+                    ref=self.case(algorithm+first+'ref',algorithm=algorithm,backend='cpu',
+                                  small=[body()],stop=16,step=.5,interval=2)
+                    self.assertState(dump(p),dump(ref),tol=1e-10)
+
     def test_postprocessor_union_of_names(self):
         a=self.case('first',small=[body('A'+str(i),phase=i*.2) for i in range(10)],stop=1)
         b=self.case('second',small=[body('B'+str(i),phase=i*.2) for i in range(10)],stop=1)

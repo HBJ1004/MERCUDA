@@ -30,6 +30,15 @@ class GPUAlgorithms(unittest.TestCase):
                     for a,b in zip(states[0][name][key],states[1][name][key]):
                         self.assertLess(abs(a-b),1e-10,(algorithm,name,key,a,b))
 
+    def test_hybrid(self):
+        for massive in [False,True]:
+            for direction in [-1,1]:
+                self.compare('HYBRID',massive=massive,stop=direction*128,interval=7.3)
+        for n in [0,1,257]: self.compare('HYBRID',big=[],count=n)
+        # Overlapping Hill spheres force the compact BS2 encounter path.
+        self.compare('HYBRID',big=[body('A',mass=1e-5,a=1),
+                                  body('B',mass=1e-5,a=1.02,phase=.02)],count=3,stop=8)
+
     def test_mvs(self):
         for direction in [-1,1]:
             self.compare('MVS',stop=direction*128,interval=7.3)

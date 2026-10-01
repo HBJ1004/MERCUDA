@@ -741,11 +741,19 @@ c
       call gpu_push (nbod,nbig,m,x,v,ngf,jcen,rce,rphys,opt,ngflag)
       if (gpu_enabled) then
         timer = wall_seconds()
+        if (algor.eq.10) then
+          call onestep (time,tstart,h0,tol,rmax,en,am,jcen,rcen,nbod,
+     %      nbig,m,x,v,s,rphys,rcrit,rce,stat,id,ngf,algor,opt,dtflag,
+     %      ngflag,opflag,colflag,nclo,iclo,jclo,dclo,tclo,ixvclo,
+     %      jxvclo,outfile,mem,lmem)
+          call gpu_refresh_events (time+h0,h0,rcen)
+        else
         call gpu_advance (time,h0,tmp0,tol,dtflag)
         colflag = 0
         call gpu_find_events (time+h0,h0,rcen,CMAX,nclo,iclo,jclo,
      %    dclo,tclo,ixvclo,jxvclo,nhit,ihit,jhit,chit,dhit,thit,
      %    thit1,nowflag)
+        endif
       else
 c Save the current heliocentric coordinates and velocities
       if (algor.eq.1) then
@@ -3574,6 +3582,7 @@ c
      %  ngflag,opflag,colflag,nclo,iclo,jclo,dclo,tclo,ixvclo,jxvclo,
      %  outfile,mem,lmem)
 c
+      use mercury_gpu
       implicit none
       include 'mercury.inc'
 c
@@ -3598,6 +3607,18 @@ c
 c------------------------------------------------------------------------------
 c
       save a, hrec, angf, ausr
+      if (gpu_enabled) then
+        nclo = 0
+        colflag = 0
+        if (dtflag.eq.0) hrec = h0
+        call gpu_hybrid_begin (h0,rcrit,dtflag,CMAX,ce,nce,ice,jce,x,v)
+        if (nce.gt.0) call mdt_hkce (time,tstart,h0,hrec,tol,rmax,
+     %    en(3),jcen,rcen,nbod,nbig,m,x,v,s,rphys,rcrit,rce,stat,id,
+     %    ngf,algor,opt,ngflag,colflag,ce,nce,ice,jce,nclo,iclo,jclo,
+     %    dclo,tclo,ixvclo,jxvclo,outfile,mem,lmem,mfo_hkce)
+        call gpu_hybrid_finish (h0,m,x,v)
+        return
+      endif
       if (.not.allocated(a)) then
         allocate (a(3,NMAX))
         allocate (angf(3,NMAX))
@@ -3741,6 +3762,7 @@ c
      %  ngflag,colflag,ce,nce,ice,jce,nclo,iclo,jclo,dclo,tclo,ixvclo,
      %  jxvclo,outfile,mem,lmem,force)
 c
+      use mercury_gpu
       implicit none
       include 'mercury.inc'
 c
@@ -3808,6 +3830,17 @@ c
         jbs(k) = iback(jce(k))
       end do
 c
+      if (gpu_enabled) then
+        xbs(:,1) = 0.d0
+        vbs(:,1) = 0.d0
+        rcritbs(1) = 0.d0
+        rcebs(1) = 0.d0
+        rphybs(1) = 0.d0
+        if (encounter_enter(nbs,nbsbig,mbs,xbs,vbs,rcritbs,
+     %      rcebs,rphybs,nce,ibs,jbs).ne.0)
+     %      call fail('CUDA encounter initialization failed')
+        dtflag = 1
+      endif
       tlocal = 0.d0
       hlocal = sign(hrec,h0)
 c
@@ -3820,9 +3853,14 @@ c
 c Save old coordinates and integrate
         call mco_iden (time,jcen,nbs,0,h0,mbs,xbs,vbs,x0,v0,ngf,ngflag,
      %    opt)
+        if (gpu_enabled) then
+          call gpu_advance (time,hlocal,hdid,tol,dtflag)
+          call gpu_pull (xbs,vbs)
+        else
         call mdt_bs2 (time,hlocal,hdid,tol,jcen,nbs,nbsbig,mbs,xbs,vbs,
      %    sbs,rphybs,rcritbs,ngfbs,statbs,dtflag,ngflag,opt,nce,
      %    ibs,jbs,force)
+        endif
         tlocal = tlocal + hdid
 c
 c Check for close-encounter minima
@@ -3841,6 +3879,10 @@ c If collisions occurred, resolve the collision and return a flag
               call mce_coll (thit(k),tstart,elost,jcen,i,j,nbs,nbsbig,
      %          mbs,xbs,vbs,sbs,rphybs,statbs,idbs,opt,mem,lmem,
      %          outfile(3))
+              if (gpu_enabled) then
+                if (encounter_update(mbs,xbs,vbs).ne.0)
+     %            call fail('CUDA encounter collision upload failed')
+              endif
               colflag = colflag + 1
             end if
           end do
@@ -3848,6 +3890,9 @@ c If collisions occurred, resolve the collision and return a flag
 c
 c If necessary, continue integrating objects undergoing close encounters
       if ((tlocal - h0)*h0.lt.0d0) goto 50
+c
+c Return to the resident parent workspace after the compact encounter.
+      if (gpu_enabled) call encounter_exit()
 c
 c Return data for the close-encounter objects to global arrays
       do k = 2, nbs

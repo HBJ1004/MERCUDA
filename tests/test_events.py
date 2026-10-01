@@ -40,11 +40,15 @@ class Events(unittest.TestCase):
                 self.assertLess(abs(real8(a[14:22])-real8(b[14:22])),1e-10)
 
     def test_massive_merge_and_further_steps(self):
+        for algorithm in ['BS','BS2','RADAU','HYBRID']:
+            with self.subTest(algorithm=algorithm): self.merge_case(algorithm)
+
+    def merge_case(self,algorithm):
         a=body('A',mass=1e-8,e=0,d=1e-6); b=body('B',mass=2e-8,e=0,d=1e-6)
         b['x'][0]+=.0003
         results=[]
         for backend in self.backends():
-            p=self.case(backend,big=[a,b],small=[body('P',a=2)],backend=backend,stop=.2,step=.01,interval=.05,collisions=True)
+            p=self.case(algorithm+backend,algorithm=algorithm,big=[a,b],small=[body('P',a=2)],backend=backend,stop=.2,step=.01,interval=.05,collisions=True)
             big=dump(p,'big.dmp'); self.assertEqual(set(big),{'B'}); self.assertAlmostEqual(big['B']['mass'],3e-8,places=20)
             results.append((dump(p),big))
         if len(results)==2:
@@ -52,11 +56,15 @@ class Events(unittest.TestCase):
             self.assertState(results[0][1],results[1][1],tol=2e-10)
 
     def test_central_impact_and_ejection(self):
+        for algorithm in ['BS','BS2','RADAU','MVS','HYBRID']:
+            with self.subTest(algorithm=algorithm): self.impact_case(algorithm)
+
+    def impact_case(self,algorithm):
         infall=body('IMPACT'); infall['x']=[.006,0,0]; infall['v']=[-.1,0,0]
         escaping=body('ESCAPE'); escaping['x']=[99.9,0,0]; escaping['v']=[10.,0,0]
         results=[]
         for backend in self.backends():
-            p=prepare(self.base/backend,small=[infall,escaping,body('KEEP')],backend=backend,stop=.3,step=.001,interval=.05)
+            p=prepare(self.base/(algorithm+backend),algorithm=algorithm,small=[infall,escaping,body('KEEP')],backend=backend,stop=.3,step=.001,interval=.05)
             text=(p/'param.in').read_text(); text=re.sub(r'(periodic effects.*?=)\s*[^\n]+',r'\g<1> 10',text,flags=re.I)
             (p/'param.in').write_text(text); run(p)
             state=dump(p); self.assertEqual(set(state),{'KEEP'}); results.append(state)

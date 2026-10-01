@@ -23,5 +23,10 @@ int mercury_cuda_download(double *x, double *v, int previous);
 int mercury_cuda_events(double time, double h, double rcen,
     const MercuryEvent **events, int *count);
 int mercury_cuda_force(double *a); // regression/benchmark interface
+int mercury_cuda_hybrid_begin(double,const double*,int,int,int*,int*,int*,int*,double*,double*,int64_t*);
+int mercury_cuda_hybrid_finish(double,const double*,const double*,const double*,int64_t*);
+int mercury_cuda_encounter_enter(int,int,const double*,const double*,const double*,const double*,const double*,const double*,int,const int*,const int*);
+int mercury_cuda_encounter_update(const double*,const double*,const double*);
+void mercury_cuda_encounter_exit();
 void mercury_cuda_free();
 }

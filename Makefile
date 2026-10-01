@@ -43,7 +43,7 @@ $(SUPPORT): mercury_support.f90 | $(BUILD)/.dir
 	$(FC) $(FFLAGS) -J$(BUILD) -I$(BUILD) -c $< -o $@
 $(GPU_SUPPORT): mercury_gpu.f90 $(SUPPORT)
 	$(FC) $(FFLAGS) -J$(BUILD) -I$(BUILD) -c $< -o $@
-$(BUILD)/mercury_cuda.o: mercury_cuda.cu mercury_cuda.h mercury_cuda_adaptive.cuh mercury_cuda_radau.cuh mercury_cuda_symplectic.cuh mercury_cuda_kepler.cuh | $(BUILD)/.dir
+$(BUILD)/mercury_cuda.o: mercury_cuda.cu mercury_cuda.h mercury_cuda_adaptive.cuh mercury_cuda_radau.cuh mercury_cuda_symplectic.cuh mercury_cuda_kepler.cuh mercury_cuda_hybrid.cuh | $(BUILD)/.dir
 	$(NVCC) -O3 -std=c++17 -arch=$(CUDA_ARCH) --fmad=false -Xcompiler -fPIC -c $< -o $@
 $(BUILD)/mercury_cuda_stub.o: mercury_cuda_stub.cpp mercury_cuda.h | $(BUILD)/.dir
 	$(CXX) $(CXXFLAGS) -c $< -o $@
