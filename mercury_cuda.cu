@@ -201,6 +201,7 @@ __global__ void accept(int n,int levels,const double* d,double* xx,double* vv) {
 }
 
 #include "mercury_cuda_adaptive.cuh"
+#include "mercury_cuda_radau.cuh"
 
 __device__ void minimum(double d0,double d1,double v0,double v1,double h,double& d,double& t) {
     if(v0*h>0||v1*h<0) { d=fmin(d0,d1); t=d0<=d1?-h:0; return; }
@@ -321,10 +322,14 @@ extern "C" void mercury_cuda_free() {
     device_events=nullptr; capacity=0; event_capacity=0; host_events.clear();
 }
 extern "C" int mercury_cuda_configure(int method) {
-    if(method!=2&&method!=3) return 1;
+    if(method!=2&&method!=3&&method!=4) return 1;
     if(method!=algorithm) mercury_cuda_free();
-    algorithm=method; return 0;
+    algorithm=method;
+    try { if(method==4) initialize_radau(); }
+    catch(const std::exception& e) { return error(e); }
+    ra_reset=true; return 0;
 }
+extern "C" void mercury_cuda_reset(int flag) { if(flag!=2) ra_reset=true; }
 extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double* m,
     const double* xx,const double* vv,const double* ng,const double* jcen,
     const double* limits,const double* radii) {
@@ -332,15 +337,16 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
         if(n>capacity) {
             mercury_cuda_free();
             size_t free_bytes,total_bytes; check(cudaMemGetInfo(&free_bytes,&total_bytes));
-            if(size_t(n)*(algorithm==3?1000:800)>free_bytes*8/10) throw std::runtime_error("Insufficient device workspace memory");
+            if(size_t(n)*(algorithm==2?800:1100)>free_bytes*8/10) throw std::runtime_error("Insufficient device workspace memory");
             for(double** p:{&x,&v,&oldx,&oldv,&wx,&wv,&ex,&ev,&acc,&acc0}) allocate(*p,size_t(3)*n);
-            allocate(table,size_t(algorithm==3?72:48)*n); allocate(scale,size_t(2)*n);
+            allocate(table,size_t(algorithm==3?72:algorithm==4?63:48)*n); allocate(scale,size_t(2)*n);
             allocate(mass,n); allocate(ngf,size_t(4)*n); allocate(rce,n); allocate(rphys,n);
             allocate(boxes,size_t(4)*n); allocate(transfer,size_t(4)*n);
             allocate(partial,blocks(n)); allocate(maximum,1); allocate(indirect,3);
             allocate(fault,1); allocate(event_count,1); reserve_events(4096);
             capacity=n;
         }
+        ra_reset=true;
         cfg={n,nbig,ngflag,m[0],jcen[0],jcen[1],jcen[2]}; pn_enabled=pn!=0;
         check(cudaMemcpy(mass,m,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rce,limits,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
@@ -354,6 +360,10 @@ extern "C" int mercury_cuda_step(double time,double* h,double* hdid,double tol,i
     try {
         int n=cfg.n; int64_t before=nforces; *rejected=0;
         check(cudaMemset(fault,0,sizeof(int)));
+        if(algorithm==4) {
+            radau_step(time,h,hdid,tol,rejected);
+            *forces=nforces-before; return 0;
+        }
         if(algorithm==3) {
             bs2_step(time,h,hdid,tol,rejected);
             *forces=nforces-before; return 0;

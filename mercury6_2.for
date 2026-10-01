@@ -430,7 +430,7 @@ c
       call gpu_push (nbod,nbig,m,xh,vh,ngf,jcen,rce,rphys,opt,
      %  ngflag)
       if (gpu_enabled) then
-        call gpu_advance (time,h,hdid,tol)
+        call gpu_advance (time,h,hdid,tol,dtflag)
       else
 c Save the current coordinates and velocities
       call mco_iden (time,jcen,nbod,nbig,h,m,xh,vh,x0,v0,ngf,ngflag,opt)

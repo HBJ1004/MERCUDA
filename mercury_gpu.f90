@@ -40,6 +40,10 @@ module mercury_gpu
       type(c_ptr) :: ptr
       integer(c_int) :: count
     end function
+    subroutine reset_history(flag) bind(C,name="mercury_cuda_reset")
+      import
+      integer(c_int),value :: flag
+    end subroutine
     subroutine gpu_free() bind(C,name='mercury_cuda_free')
     end subroutine
   end interface
@@ -48,9 +52,9 @@ contains
     integer,intent(in) :: algor,n,nbig,opt(8),unit
     real(8),intent(in) :: m(n)
     logical :: supported
-    supported=(algor==2.or.algor==3).and.opt(8)==0
+    supported=(algor==2.or.algor==3.or.algor==4).and.opt(8)==0
     if(backend_request==1.and..not.supported) &
-      call fail('CUDA requires BS/BS2 and user-defined force = no')
+      call fail('CUDA requires BS/BS2/RADAU and user-defined force = no')
     if(backend_request==1.and.available()==0) call fail('CUDA was requested but no CUDA device/build is available')
     gpu_enabled=backend_request/=0.and.supported.and.available()/=0
     if(backend_request==2.and.n-nbig<4096) gpu_enabled=.false.
@@ -75,13 +79,16 @@ contains
     endif
     current_n=n; gpu_dirty=.false.; host_current=.true.
   end subroutine
-  subroutine gpu_advance(time,h,hdid,tol)
+  subroutine gpu_advance(time,h,hdid,tol,dtflag)
     real(8),intent(in) :: time,tol
     real(8),intent(inout) :: h
     real(8),intent(out) :: hdid
     integer(c_int64_t) :: nf,nr
+    integer,intent(inout) :: dtflag
+    call reset_history(dtflag)
     if(step(time,h,hdid,tol,nf,nr)/=0) call fail('CUDA integration step failed')
     force_calls=force_calls+nf; rejected_steps=rejected_steps+nr
+    dtflag=2
     host_current=.false.
   end subroutine
   subroutine gpu_pull(x,v)

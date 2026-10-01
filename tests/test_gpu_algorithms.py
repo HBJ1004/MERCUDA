@@ -28,6 +28,12 @@ class GPUAlgorithms(unittest.TestCase):
                     for a,b in zip(states[0][name][key],states[1][name][key]):
                         self.assertLess(abs(a-b),1e-10,(algorithm,name,key,a,b))
 
+    def test_radau(self):
+        for direction in [-1,1]:
+            for pn in [False,True]:
+                self.compare('RADAU',massive=True,pn=pn,stop=direction*32,interval=7.3,
+                             params={'a2':1e-12,'b':.001} if pn else None)
+
     def test_bs2(self):
         for massive in [False,True]:
             for direction in [-1,1]:

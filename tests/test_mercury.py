@@ -135,7 +135,7 @@ class Integration(unittest.TestCase):
     def test_input_guards_and_big_a2(self):
         p=self.case('big_a2',big=[body('BIG',mass=1e-15,a2=3.4e-14)],small=[],stop=3)
         self.assertEqual(dump(p,'big.dmp')['BIG']['params']['a2'],3.4e-14)
-        for name,kw,message in [('bad_backend',dict(backend='cuda',algorithm='RADAU'),'CUDA requires'),('bad_force',dict(pn=True,algorithm='BS2'),'require BS'),('duplicate',dict(small=[body(),body()]),'Duplicate body'),('zero_interval',dict(interval=0),'interval')]:
+        for name,kw,message in [('bad_backend',dict(backend='cuda',user_force=True),'CUDA requires'),('bad_force',dict(pn=True,algorithm='BS2'),'require BS'),('duplicate',dict(small=[body(),body()]),'Duplicate body'),('zero_interval',dict(interval=0),'interval')]:
             p=prepare(self.base/name,**kw); res=run(p,check=False)
             self.assertNotEqual(res.returncode,0,(name,res.stdout)); self.assertIn(message,(res.stdout+res.stderr))
 
