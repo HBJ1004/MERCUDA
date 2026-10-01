@@ -566,3 +566,11 @@ extern "C" int mercury_cuda_encounter_update(const double* m,const double* xx,co
     } catch(const std::exception& e) { return error(e); }
 }
 extern "C" void mercury_cuda_encounter_exit() { other_context.exchange(); encounter_active=false; }
+
+// Periodic Hill-radius changes do not change the dynamical state or its history.
+extern "C" int mercury_cuda_limits(const double* limits) {
+    try {
+        check(cudaMemcpy(rce,limits,cfg.n*sizeof(double),cudaMemcpyHostToDevice));
+        return 0;
+    } catch(const std::exception& e) { return error(e); }
+}

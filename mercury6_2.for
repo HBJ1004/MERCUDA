@@ -567,7 +567,6 @@ c  CHECK  FOR  EJECTIONS  AND  DO  OTHER  PERIODIC  EFFECTS
 c
       if (abs(time-tfun).ge.abs(dtfun).and.opflag.ge.-1) then
         call gpu_pull (xh,vh)
-        gpu_dirty = .true.
 c
 c Recompute close encounter limits, to allow for changes in Hill radii
         call mce_hill (nbod,m,xh,vh,rce,a)
@@ -589,6 +588,8 @@ c Remove lost objects, reset flags and recompute Hill and physical radii
           call mce_init (tstart,algor,h0,jcen,rcen,rmax,cefac,nbod,nbig,
      %      m,xh,vh,s,rho,rceh,rphys,rce,rcrit,id,opt,outfile(2),0)
         end if
+c Preserve predictor/kick history when only the encounter radii changed.
+        call gpu_limits (rce)
         tfun = time
       end if
 c
@@ -916,7 +917,6 @@ c  CHECK  FOR  EJECTIONS  AND  DO  OTHER  PERIODIC  EFFECTS
 c
       if (abs(time-tfun).ge.abs(dtfun).and.opflag.ge.-1) then
         call gpu_pull (x,v)
-        gpu_dirty = .true.
         if (algor.eq.1) then
           call mco_iden (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,
      %      opt)
@@ -954,6 +954,8 @@ c Remove ejected objects, reset flags, calculate new Hill and physical radii
      %        opt)
           end if
         end if
+c Preserve predictor/kick history when only the encounter radii changed.
+        call gpu_limits (rce)
         tfun = time
       end if
 c

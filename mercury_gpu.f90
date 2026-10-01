@@ -11,6 +11,10 @@ module mercury_gpu
   end type
   type(gpu_event), pointer :: events(:)=>null()
   interface
+    integer(c_int) function update_limits(rce) bind(C,name="mercury_cuda_limits")
+      import
+      real(c_double),intent(in) :: rce(*)
+    end function
     integer(c_int) function hybrid_begin(h,crit,flag,cap,ce,nce,pi,pj,x,v,nf) bind(C,name="mercury_cuda_hybrid_begin")
       import
       real(c_double),value :: h
@@ -80,6 +84,11 @@ module mercury_gpu
     end subroutine
   end interface
 contains
+  subroutine gpu_limits(rce)
+    real(8),intent(in) :: rce(*)
+    if(.not.gpu_enabled.or.gpu_dirty) return
+    if(update_limits(rce)/=0) call fail('CUDA encounter-radius update failed')
+  end subroutine
   subroutine gpu_hybrid_begin(h,crit,flag,cap,ce,nce,pi,pj,x,v)
     real(8) :: h,crit(*),x(3,*),v(3,*)
     integer :: flag,cap,ce(*),nce,pi(*),pj(*)

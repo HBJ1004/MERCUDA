@@ -74,7 +74,9 @@ and encounter screening between accepted steps. The CPU retains scheduling,
 files, synchronization of different input epochs, and collision/ejection
 resolution. State transfers occur for output, dumps, periodic checks, actual collisions,
 and compact HYBRID encounter substeps. The original shared adaptive timestep and tolerance test
-are retained: one difficult orbit can limit the entire ensemble.
+are retained: one difficult orbit can limit the entire ensemble. Periodic Hill-radius
+updates transfer the new radii without resetting predictor or kick history; full
+state uploads are reserved for initialization and actual state changes.
 
 Body capacity is counted from the input before allocating arrays. The original
 2000-body limit is removed from all three executables. GPU workspace depends on the selected
@@ -140,7 +142,10 @@ PN, A2, and PR require `BS` or `RADAU`; incompatible algorithms are rejected.
 Set stop time earlier than start time in `param.in`, as before. BS, BS2 and RADAU
 now use direction-aware step clipping for synchronization, preparation, output,
 and final epochs. The output interval also caps preparation/synchronization
-steps. BS substage force times are signed correctly, encounter checks use the
+steps. The BS2 velocity-error norm also corrects an inherited cross-component typo
+(`d(5)*d(2)` becomes `d(5)*d(5)`). The same numerical tolerance can therefore
+choose different steps and yield different errors from historical BS2.
+BS substage force times are signed correctly, encounter checks use the
 accepted step, and RADAU predictors include velocity-dependent forces and are
 reset after externally imposed step changes.
 

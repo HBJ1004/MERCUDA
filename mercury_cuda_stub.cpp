@@ -3,6 +3,7 @@ extern "C" {
 int mercury_cuda_available() { return 0; }
 int mercury_cuda_configure(int) { return 1; }
 void mercury_cuda_reset(int) {}
+int mercury_cuda_limits(const double*) { return 1; }
 int mercury_cuda_export(double,int,double*,double*) { return 1; }
 int mercury_cuda_upload(int,int,int,int,const double*,const double*,
     const double*,const double*,const double*,const double*,const double*) { return 1; }

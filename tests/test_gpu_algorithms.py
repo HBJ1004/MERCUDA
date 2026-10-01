@@ -57,6 +57,13 @@ class GPUAlgorithms(unittest.TestCase):
                 for k in ['x','v']:
                     self.assertLess(max(abs(a-b) for a,b in zip(states[0][k],states[1][k])),1e-10)
 
+    def test_periodic_updates_preserve_history(self):
+        # Frequent Hill-radius updates must not reinitialize the RA15 predictor.
+        self.compare('RADAU',big=[body('INNER',mass=1.66e-7,a=.4,e=.025)],
+                     count=0,stop=3650,interval=3650)
+        for algorithm in ['MVS','HYBRID']:
+            self.compare(algorithm,stop=128,interval=128,params={'a1':1e-9,'a3':1e-9})
+
     def test_radau(self):
         for direction in [-1,1]:
             for pn in [False,True]:
