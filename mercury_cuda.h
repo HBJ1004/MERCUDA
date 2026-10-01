@@ -10,6 +10,7 @@ struct MercuryEvent {
 };
 extern "C" {
 int mercury_cuda_available();
+int mercury_cuda_configure(int algorithm);
 int mercury_cuda_upload(int n, int nbig, int pn, int ngflag,
     const double *m, const double *x, const double *v,
     const double *ngf, const double *jcen, const double *rce,

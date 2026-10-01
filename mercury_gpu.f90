@@ -11,6 +11,10 @@ module mercury_gpu
   end type
   type(gpu_event), pointer :: events(:)=>null()
   interface
+    integer(c_int) function configure(algorithm) bind(C,name="mercury_cuda_configure")
+      import
+      integer(c_int),value :: algorithm
+    end function
     integer(c_int) function available() bind(C,name='mercury_cuda_available')
       import
     end function
@@ -44,15 +48,16 @@ contains
     integer,intent(in) :: algor,n,nbig,opt(8),unit
     real(8),intent(in) :: m(n)
     logical :: supported
-    supported=algor==2.and.opt(8)==0
+    supported=(algor==2.or.algor==3).and.opt(8)==0
     if(backend_request==1.and..not.supported) &
-      call fail('CUDA requires BS and user-defined force = no')
+      call fail('CUDA requires BS/BS2 and user-defined force = no')
     if(backend_request==1.and.available()==0) call fail('CUDA was requested but no CUDA device/build is available')
     gpu_enabled=backend_request/=0.and.supported.and.available()/=0
     if(backend_request==2.and.n-nbig<4096) gpu_enabled=.false.
     gpu_dirty=.true.; host_current=.true.; current_n=0
     if(gpu_enabled) then
-      write(unit,'(a)') ' Execution backend: CUDA (resident double-precision BS)'
+      if(configure(algor)/=0) call fail('CUDA algorithm initialization failed')
+      write(unit,'(a,i2)') ' Execution backend: CUDA, algorithm ',algor
     else
       write(unit,'(a)') ' Execution backend: CPU'
     endif
@@ -75,7 +80,7 @@ contains
     real(8),intent(inout) :: h
     real(8),intent(out) :: hdid
     integer(c_int64_t) :: nf,nr
-    if(step(time,h,hdid,tol,nf,nr)/=0) call fail('CUDA BS step failed')
+    if(step(time,h,hdid,tol,nf,nr)/=0) call fail('CUDA integration step failed')
     force_calls=force_calls+nf; rejected_steps=rejected_steps+nr
     host_current=.false.
   end subroutine

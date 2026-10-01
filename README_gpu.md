@@ -28,7 +28,7 @@ Append this optional line after the existing settings in `param.in`:
 ```
 
 The choices are `cpu` (default), `cuda`, and `auto`. CUDA supports the general
-`BS` algorithm, massive bodies in `big.in`, and massless or semi-active bodies in
+`BS` and conservative `BS2` algorithms, massive bodies in `big.in`, and massless or semi-active bodies in
 `small.in`. Small bodies can perturb big bodies but never one another. It includes Newtonian gravity, central J2/J4/J6, solar 1PN, the
 preserved PR prescription, and A1/A2/A3. A customized `mfo_user` requires CPU.
 Explicit CUDA requests fail clearly for unsupported cases. `auto` chooses CUDA
@@ -38,15 +38,14 @@ heuristic, not a measured crossover for every system.
 
 ## Why the other algorithms currently use the CPU
 
-Only the general BS timestepper has a CUDA implementation in this version.
+BS and BS2 have CUDA timesteppers in this version.
 This is an implementation scope limit; the other algorithms can also be ported.
 Accelerating gravity alone would still leave their integration stages on the CPU
 and require state transfers during force evaluations.
 
 A complete port must preserve each method's numerical operations: MVS needs
 Kepler drifts, Jacobi transformations, and symplectic correctors; RADAU needs its
-predictor and correction stages; BS2 needs its distinct conservative extrapolation;
-and HYBRID needs both the symplectic path and encounter-driven BS switching.
+predictor and correction stages; HYBRID needs both the symplectic path and encounter-driven BS switching.
 Each implementation also needs CPU/GPU trajectory and encounter validation.
 
 The GPU retains the BS midpoint stages, extrapolation table, error reductions,

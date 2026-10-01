@@ -28,6 +28,11 @@ class GPUAlgorithms(unittest.TestCase):
                     for a,b in zip(states[0][name][key],states[1][name][key]):
                         self.assertLess(abs(a-b),1e-10,(algorithm,name,key,a,b))
 
+    def test_bs2(self):
+        for massive in [False,True]:
+            for direction in [-1,1]:
+                self.compare('BS2',massive=massive,stop=direction*32)
+
     def test_bs_semi_active(self):
         for direction in [-1,1]:
             self.compare('BS',massive=True,pn=True,stop=direction*32,

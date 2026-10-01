@@ -15,6 +15,7 @@ constexpr double C_PN=299792458.0*86400.0/1.495978707e11;
 constexpr double C_PR=static_cast<double>(173.1f);
 struct Config { int n,nbig,ngflag; double mu,j2,j4,j6; } cfg;
 bool pn_enabled=false;
+int algorithm=2;
 int capacity=0,event_capacity=0;
 double *x=nullptr,*v=nullptr,*oldx=nullptr,*oldv=nullptr;
 double *wx=nullptr,*wv=nullptr,*ex=nullptr,*ev=nullptr,*acc=nullptr,*acc0=nullptr;
@@ -199,6 +200,8 @@ __global__ void accept(int n,int levels,const double* d,double* xx,double* vv) {
     xx[j]=a; vv[j]=b;
 }
 
+#include "mercury_cuda_adaptive.cuh"
+
 __device__ void minimum(double d0,double d1,double v0,double v1,double h,double& d,double& t) {
     if(v0*h>0||v1*h<0) { d=fmin(d0,d1); t=d0<=d1?-h:0; return; }
     double temp=6.0*(d0-d1),a=temp+3.0*h*(v0+v1),b=temp+2.0*h*(v0+2.0*v1),c=h*v1;
@@ -317,6 +320,11 @@ extern "C" void mercury_cuda_free() {
     if(device_events) cudaFree(device_events);
     device_events=nullptr; capacity=0; event_capacity=0; host_events.clear();
 }
+extern "C" int mercury_cuda_configure(int method) {
+    if(method!=2&&method!=3) return 1;
+    if(method!=algorithm) mercury_cuda_free();
+    algorithm=method; return 0;
+}
 extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double* m,
     const double* xx,const double* vv,const double* ng,const double* jcen,
     const double* limits,const double* radii) {
@@ -324,9 +332,9 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
         if(n>capacity) {
             mercury_cuda_free();
             size_t free_bytes,total_bytes; check(cudaMemGetInfo(&free_bytes,&total_bytes));
-            if(size_t(n)*800>free_bytes*8/10) throw std::runtime_error("Insufficient device workspace memory");
+            if(size_t(n)*(algorithm==3?1000:800)>free_bytes*8/10) throw std::runtime_error("Insufficient device workspace memory");
             for(double** p:{&x,&v,&oldx,&oldv,&wx,&wv,&ex,&ev,&acc,&acc0}) allocate(*p,size_t(3)*n);
-            allocate(table,size_t(48)*n); allocate(scale,size_t(2)*n);
+            allocate(table,size_t(algorithm==3?72:48)*n); allocate(scale,size_t(2)*n);
             allocate(mass,n); allocate(ngf,size_t(4)*n); allocate(rce,n); allocate(rphys,n);
             allocate(boxes,size_t(4)*n); allocate(transfer,size_t(4)*n);
             allocate(partial,blocks(n)); allocate(maximum,1); allocate(indirect,3);
@@ -346,6 +354,10 @@ extern "C" int mercury_cuda_step(double time,double* h,double* hdid,double tol,i
     try {
         int n=cfg.n; int64_t before=nforces; *rejected=0;
         check(cudaMemset(fault,0,sizeof(int)));
+        if(algorithm==3) {
+            bs2_step(time,h,hdid,tol,rejected);
+            *forces=nforces-before; return 0;
+        }
         begin_step<<<blocks(n),THREADS>>>(n,x,v,oldx,oldv,scale);
         force(oldx,oldv,acc0);
         for(;;) {
