@@ -161,7 +161,7 @@ contains
     integer :: n,nbig,ngflag,opt(8)
     real(8) :: time,jcen(3),h,m(n),x(3,n),v(3,n),xh(3,n),vh(3,n),ngf(4,n)
     external bcoord
-    if(gpu_enabled) then
+    if(gpu_enabled.and..not.gpu_dirty) then
       call gpu_export(h,1,xh,vh)
     else
       call bcoord(time,jcen,n,nbig,h,m,x,v,xh,vh,ngf,ngflag,opt)

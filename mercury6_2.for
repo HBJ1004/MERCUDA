@@ -794,33 +794,18 @@ c------------------------------------------------------------------------------
 c
 c  COLLISIONS
 c
-c If collisions occurred, output details and remove lost objects
-      if (colflag.ne.0) then
-c
-c Reindex the surviving objects
-        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
-        call mxx_elim (nbod,nbig,m,xh,vh,s,rho,rceh,rcrit,ngf,stat,
-     %    id,mem,lmem,outfile(3),itmp)
-c
-c Reset flags, and calculate new Hill radii and physical radii
-        dtflag = 1
-        gpu_dirty = .true.
-        host_current = .true.
-        if (opflag.ge.0) opflag = 1
-        call mce_init (tstart,algor,h0,jcen,rcen,rmax,cefac,nbod,nbig,
-     %    m,xh,vh,s,rho,rceh,rphys,rce,rcrit,id,opt,outfile(2),1)
-        call coord (time,jcen,nbod,nbig,h0,m,xh,vh,x,v,ngf,ngflag,opt)
-      end if
+c Delay compaction until central-event indices have also been consumed.
 c
 c------------------------------------------------------------------------------
 c
 c  COLLISIONS  WITH  CENTRAL  BODY
 c
-      if (gpu_enabled) then
+      if (gpu_enabled.and.colflag.eq.0) then
         call gpu_central (CMAX,nhit,jhit,thit,dhit)
         if (nhit.gt.0) call gpu_old (xh0,vh0)
       else
 c Check for collisions with the central body
+      if (gpu_enabled) call gpu_old (xh0,vh0)
       if (algor.eq.1) then
         call mco_iden(time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
       else
@@ -832,6 +817,17 @@ c Check for collisions with the central body
      %  nhit,jhit,thit,dhit,algor,ngf,ngflag)
 c
       end if
+c
+c Discard events involving bodies already lost in a pair collision.
+      itmp = 0
+      do k = 1, nhit
+        if (stat(jhit(k)).lt.0) cycle
+        itmp = itmp + 1
+        jhit(itmp) = jhit(k)
+        thit(itmp) = thit(k)
+        dhit(itmp) = dhit(k)
+      enddo
+      nhit = itmp
 c
 c If something hit the central body, restore the coords prior to this step
       if (nhit.gt.0) then
@@ -867,6 +863,24 @@ c Remove lost objects, reset flags and recompute Hill and physical radii
 c
 c Redo that integration time step
         goto 150
+      end if
+c
+c If collisions occurred, output details and remove lost objects
+      if (colflag.ne.0.and.nhit.eq.0) then
+c
+c Reindex the surviving objects
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
+        call mxx_elim (nbod,nbig,m,xh,vh,s,rho,rceh,rcrit,ngf,stat,
+     %    id,mem,lmem,outfile(3),itmp)
+c
+c Reset flags, and calculate new Hill radii and physical radii
+        dtflag = 1
+        gpu_dirty = .true.
+        host_current = .true.
+        if (opflag.ge.0) opflag = 1
+        call mce_init (tstart,algor,h0,jcen,rcen,rmax,cefac,nbod,nbig,
+     %    m,xh,vh,s,rho,rceh,rphys,rce,rcrit,id,opt,outfile(2),1)
+        call coord (time,jcen,nbod,nbig,h0,m,xh,vh,x,v,ngf,ngflag,opt)
       end if
 c
 c------------------------------------------------------------------------------

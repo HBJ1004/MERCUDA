@@ -173,7 +173,8 @@ the user's input files. Tests cover analytic force values, byte-for-byte PR
 preservation, CPU/CUDA force and trajectory comparisons, reverse integration,
 round trips, off-grid preparation, relativistic precession, secular A2 drift,
 CPU/CUDA restart switching across all five production algorithms, postprocessing,
-collisions, ejections, and 4100 simultaneous
+collisions (including a HYBRID merger and central impact in one step), ejections,
+and 4100 simultaneous
 encounter records. GPU tests skip when CUDA is unavailable. `make test-debug` runs the same tests
 with Fortran bounds and runtime checks in a separate build directory.
 

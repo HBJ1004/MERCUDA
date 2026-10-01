@@ -55,6 +55,20 @@ class Events(unittest.TestCase):
             self.assertState(results[0][0],results[1][0],tol=2e-10)
             self.assertState(results[0][1],results[1][1],tol=2e-10)
 
+    def test_hybrid_merge_and_central_impact(self):
+        a=body('A',mass=1e-8,e=0,d=1e-6)
+        b=body('B',mass=2e-8,e=0,d=1e-6); b['x'][0]+=.0003
+        impact=body('IMPACT'); impact['x']=[.00505,0,0]; impact['v']=[-.1,0,0]
+        states=[]
+        for backend in self.backends():
+            p=self.case('combined'+backend,algorithm='HYBRID',backend=backend,
+                        big=[a,b],small=[impact,body('KEEP',a=2)],collisions=True,
+                        stop=.01,step=.001,interval=.001)
+            self.assertEqual(set(dump(p,'big.dmp')),{'B'})
+            self.assertEqual(set(dump(p)),{'KEEP'})
+            states.append({**dump(p,'big.dmp'),**dump(p)})
+        if len(states)==2:self.assertState(*states,tol=2e-10)
+
     def test_central_impact_and_ejection(self):
         for algorithm in ['BS','BS2','RADAU','MVS','HYBRID']:
             with self.subTest(algorithm=algorithm): self.impact_case(algorithm)
