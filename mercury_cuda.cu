@@ -60,7 +60,7 @@ __device__ void obl(Config c,const double r[3],double inv,double a[3]) {
 __global__ void indirect_force(Config c,const double* pos,const double* m,double* result) {
     if(threadIdx.x||blockIdx.x) return;
     double out[3]={0,0,0};
-    for(int j=1;j<c.nbig;j++) {
+    for(int j=1;j<c.n;j++) {
         if(m[j]==0) continue;
         double r[3]={pos[j],pos[c.n+j],pos[2*c.n+j]};
         double inv=1.0/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
@@ -84,7 +84,9 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
     if(!(r2>0)) { atomicExch(bad,1); return; }
     double inv=1.0/sqrt(r2),inv3=inv*inv*inv;
     double a[3]={0,0,0};
-    for(int i=1;i<c.nbig;i++) {
+    // Big bodies feel small-body back-reaction. Small bodies never feel
+    // other small bodies, matching mfo_grav (including semi-active inputs).
+    for(int i=1;i<(j<c.nbig?c.n:c.nbig);i++) {
         if(i==j||m[i]==0) continue;
         double dx=pos[i]-r[0],dy=pos[c.n+i]-r[1],dz=pos[2*c.n+i]-r[2];
         double d2=dx*dx+dy*dy+dz*dz;

@@ -53,6 +53,9 @@ class Forces(unittest.TestCase):
         if self.gpu is None: self.skipTest('CUDA unavailable')
         rng=random.Random(19); n=200
         m=[MU,3e-6*MU,1e-3*MU]+[0.]*(n-3)
+        # Semi-active bodies perturb the planets and central body, but not
+        # each other. Keep massless entries too, to exercise PR mass gating.
+        for j in range(3,n,7): m[j]=1e-8*MU
         x=[0.,0.,0.]+[rng.uniform(-4,4) for _ in range(3*(n-1))]
         v=[0.,0.,0.]+[rng.uniform(-.02,.02) for _ in range(3*(n-1))]
         for pn in [False,True]:

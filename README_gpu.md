@@ -28,8 +28,8 @@ Append this optional line after the existing settings in `param.in`:
 ```
 
 The choices are `cpu` (default), `cuda`, and `auto`. CUDA supports the general
-`BS` algorithm, massive bodies in `big.in`, and **massless** particles in
-`small.in`. It includes Newtonian gravity, central J2/J4/J6, solar 1PN, the
+`BS` algorithm, massive bodies in `big.in`, and massless or semi-active bodies in
+`small.in`. Small bodies can perturb big bodies but never one another. It includes Newtonian gravity, central J2/J4/J6, solar 1PN, the
 preserved PR prescription, and A1/A2/A3. A customized `mfo_user` requires CPU.
 Explicit CUDA requests fail clearly for unsupported cases. `auto` chooses CUDA
 only for supported cases with at least 4096 small bodies and an available device;

@@ -44,9 +44,9 @@ contains
     integer,intent(in) :: algor,n,nbig,opt(8),unit
     real(8),intent(in) :: m(n)
     logical :: supported
-    supported=algor==2.and.opt(8)==0.and.all(m(nbig+1:n)==0d0)
+    supported=algor==2.and.opt(8)==0
     if(backend_request==1.and..not.supported) &
-      call fail('CUDA requires BS, massless small bodies, and user-defined force = no')
+      call fail('CUDA requires BS and user-defined force = no')
     if(backend_request==1.and.available()==0) call fail('CUDA was requested but no CUDA device/build is available')
     gpu_enabled=backend_request/=0.and.supported.and.available()/=0
     if(backend_request==2.and.n-nbig<4096) gpu_enabled=.false.
