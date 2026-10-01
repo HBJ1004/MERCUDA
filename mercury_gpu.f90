@@ -40,6 +40,12 @@ module mercury_gpu
       type(c_ptr) :: ptr
       integer(c_int) :: count
     end function
+    integer(c_int) function export_state(h,physical,x,v) bind(C,name="mercury_cuda_export")
+      import
+      real(c_double),value :: h
+      integer(c_int),value :: physical
+      real(c_double) :: x(*),v(*)
+    end function
     subroutine reset_history(flag) bind(C,name="mercury_cuda_reset")
       import
       integer(c_int),value :: flag
@@ -52,9 +58,9 @@ contains
     integer,intent(in) :: algor,n,nbig,opt(8),unit
     real(8),intent(in) :: m(n)
     logical :: supported
-    supported=(algor==2.or.algor==3.or.algor==4).and.opt(8)==0
+    supported=(algor==1.or.algor==2.or.algor==3.or.algor==4.or.algor==9).and.opt(8)==0
     if(backend_request==1.and..not.supported) &
-      call fail('CUDA requires BS/BS2/RADAU and user-defined force = no')
+      call fail('CUDA requires MVS/BS/BS2/RADAU and user-defined force = no')
     if(backend_request==1.and.available()==0) call fail('CUDA was requested but no CUDA device/build is available')
     gpu_enabled=backend_request/=0.and.supported.and.available()/=0
     if(backend_request==2.and.n-nbig<4096) gpu_enabled=.false.
@@ -96,6 +102,22 @@ contains
     if(.not.gpu_enabled.or.host_current) return
     if(download(x,v,0)/=0) call fail('CUDA download failed')
     host_current=.true.
+  end subroutine
+  subroutine gpu_export(h,physical,x,v)
+    real(8),intent(in) :: h
+    integer,intent(in) :: physical
+    real(8),intent(out) :: x(3,*),v(3,*)
+    if(export_state(h,physical,x,v)/=0) call fail('CUDA coordinate export failed')
+  end subroutine
+  subroutine gpu_bcoord(time,jcen,n,nbig,h,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
+    integer :: n,nbig,ngflag,opt(8)
+    real(8) :: time,jcen(3),h,m(n),x(3,n),v(3,n),xh(3,n),vh(3,n),ngf(4,n)
+    external bcoord
+    if(gpu_enabled) then
+      call gpu_export(h,1,xh,vh)
+    else
+      call bcoord(time,jcen,n,nbig,h,m,x,v,xh,vh,ngf,ngflag,opt)
+    endif
   end subroutine
   subroutine gpu_old(x,v)
     real(8),intent(out) :: x(3,*),v(3,*)

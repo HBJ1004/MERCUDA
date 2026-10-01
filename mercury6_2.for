@@ -624,6 +624,7 @@ c
 c
       use mercury_support, only: accepted_steps, wall_seconds,
      %  step_seconds
+      use mercury_gpu
       implicit none
       include 'mercury.inc'
 c
@@ -645,7 +646,9 @@ c Local
       real*8 dclo(CMAX),tclo(CMAX),dhit(CMAX),thit(CMAX)
       real*8 ixvclo(6,CMAX),jxvclo(6,CMAX),a(NMAX)
       real*8 timer
-      external onestep,coord,bcoord
+      external onestep,coord,bcoord,mco_iden
+      integer ihit(CMAX),chit(CMAX),nowflag
+      real*8 thit1
 c
 c------------------------------------------------------------------------------
 c
@@ -679,6 +682,9 @@ c Convert to internal coordinates and velocities
       if (tmp0.eq.0.d0) tmp0 = tstop - tstart
       h0 = sign(abs(h0),tmp0)
       call coord (time,jcen,nbod,nbig,h0,m,xh,vh,x,v,ngf,ngflag,opt)
+      gpu_dirty = .true.
+      host_current = .true.
+      call gpu_push (nbod,nbig,m,x,v,ngf,jcen,rce,rphys,opt,ngflag)
 c
 c------------------------------------------------------------------------------
 c
@@ -701,7 +707,7 @@ c Beware: the integration may change direction at this point!!!!
         if (opflag.eq.-1.and.dtflag.ne.0) dtflag = 1
 c
 c Convert to heliocentric coordinates and output data for all bodies
-        call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
         call mio_out (time,jcen,rcen,rmax,nbod,nbig,m,xh,vh,s,rho,
      %    stat,id,opt,opflag,algor,outfile(1))
         call mio_ce (time,tstart,rcen,rmax,nbod,nbig,m,stat,id,
@@ -722,7 +728,7 @@ c Update the data dump files
 c
 c If integration has finished, convert to heliocentric coords and return
       if (abs(tstop-time).le.hby2.and.opflag.ge.0) then
-        call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
         return
       end if
 c
@@ -732,18 +738,28 @@ c Make sure the integration is heading in the right direction
       if (opflag.eq.-1) tmp0 = tstart - time
       h0 = sign (h0, tmp0)
 c
+      call gpu_push (nbod,nbig,m,x,v,ngf,jcen,rce,rphys,opt,ngflag)
+      if (gpu_enabled) then
+        timer = wall_seconds()
+        call gpu_advance (time,h0,tmp0,tol,dtflag)
+        colflag = 0
+        call gpu_find_events (time+h0,h0,rcen,CMAX,nclo,iclo,jclo,
+     %    dclo,tclo,ixvclo,jxvclo,nhit,ihit,jhit,chit,dhit,thit,
+     %    thit1,nowflag)
+      else
 c Save the current heliocentric coordinates and velocities
       if (algor.eq.1) then
         call mco_iden (time,jcen,nbod,nbig,h0,m,x,v,xh0,vh0,ngf,ngflag,
      %    opt)
       else
-        call bcoord(time,jcen,nbod,nbig,h0,m,x,v,xh0,vh0,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh0,vh0,ngf,ngflag,opt,bcoord)
       end if
       timer = wall_seconds()
       call onestep (time,tstart,h0,tol,rmax,en,am,jcen,rcen,nbod,nbig,
      %  m,x,v,s,rphys,rcrit,rce,stat,id,ngf,algor,opt,dtflag,ngflag,
      %  opflag,colflag,nclo,iclo,jclo,dclo,tclo,ixvclo,jxvclo,outfile,
      %  mem,lmem)
+      end if
       step_seconds = step_seconds + wall_seconds()-timer
       accepted_steps = accepted_steps + 1
       time = time + h0
@@ -760,8 +776,8 @@ c If encounter minima occurred, output details and decide whether to stop
      %    iclo,jclo,opt,stopflag,tclo,dclo,ixvclo,jxvclo,mem,lmem,
      %    outfile,nstored,itmp)
         if (stopflag.eq.1) then
-          call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,
-     %      ngflag,opt)
+          call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,
+     %      ngflag,opt,bcoord)
           return
         end if
       end if
@@ -774,12 +790,14 @@ c If collisions occurred, output details and remove lost objects
       if (colflag.ne.0) then
 c
 c Reindex the surviving objects
-        call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
         call mxx_elim (nbod,nbig,m,xh,vh,s,rho,rceh,rcrit,ngf,stat,
      %    id,mem,lmem,outfile(3),itmp)
 c
 c Reset flags, and calculate new Hill radii and physical radii
         dtflag = 1
+        gpu_dirty = .true.
+        host_current = .true.
         if (opflag.ge.0) opflag = 1
         call mce_init (tstart,algor,h0,jcen,rcen,rmax,cefac,nbod,nbig,
      %    m,xh,vh,s,rho,rceh,rphys,rce,rcrit,id,opt,outfile(2),1)
@@ -790,22 +808,30 @@ c------------------------------------------------------------------------------
 c
 c  COLLISIONS  WITH  CENTRAL  BODY
 c
+      if (gpu_enabled) then
+        call gpu_central (CMAX,nhit,jhit,thit,dhit)
+        if (nhit.gt.0) call gpu_old (xh0,vh0)
+      else
 c Check for collisions with the central body
       if (algor.eq.1) then
         call mco_iden(time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
       else
-        call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
       end if
       itmp = 2
       if (algor.eq.11.or.algor.eq.12) itmp = 3
       call mce_cent (time,h0,rcen,jcen,itmp,nbod,nbig,m,xh0,vh0,xh,vh,
      %  nhit,jhit,thit,dhit,algor,ngf,ngflag)
 c
+      end if
+c
 c If something hit the central body, restore the coords prior to this step
       if (nhit.gt.0) then
         call mco_iden (time,jcen,nbod,nbig,h0,m,xh0,vh0,xh,vh,ngf,
      %    ngflag,opt)
         time = time - h0
+        gpu_dirty = .true.
+        host_current = .true.
 c
 c Merge the object(s) with the central body
         do k = 1, nhit
@@ -820,6 +846,8 @@ c Remove lost objects, reset flags and recompute Hill and physical radii
      %    id,mem,lmem,outfile(3),itmp)
         if (opflag.ge.0) opflag = 1
         dtflag = 1
+        gpu_dirty = .true.
+        host_current = .true.
         call mce_init (tstart,algor,h0,jcen,rcen,rmax,cefac,nbod,nbig,
      %    m,xh,vh,s,rho,rceh,rphys,rce,rcrit,id,opt,outfile(2),0)
         if (algor.eq.1) then
@@ -839,7 +867,7 @@ c  DATA  DUMP  AND  PROGRESS  REPORT
 c
 c Convert to heliocentric coords and do the data dump
       if (abs(time-tdump).ge.abs(dtdump).and.opflag.ge.-1) then
-        call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
         do j = 2, nbod
           epoch(j) = time
         end do
@@ -854,7 +882,7 @@ c Convert to heliocentric coords and do the data dump
 c
 c Convert to heliocentric coords and write a progress report to the log file
       if (abs(time-tlog).ge.abs(dtdump).and.opflag.ge.0) then
-        call bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+        call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
         call mxx_en (jcen,nbod,nbig,m,xh,vh,s,en(2),am(2))
         call mio_log (time,tstart,en,am,opt,mem,lmem)
         tlog = time
@@ -865,11 +893,13 @@ c
 c  CHECK  FOR  EJECTIONS  AND  DO  OTHER  PERIODIC  EFFECTS
 c
       if (abs(time-tfun).ge.abs(dtfun).and.opflag.ge.-1) then
+        call gpu_pull (x,v)
+        gpu_dirty = .true.
         if (algor.eq.1) then
           call mco_iden (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,
      %      opt)
         else
-          call bcoord(time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt)
+          call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
         end if
 c
 c Recompute close encounter limits, to allow for changes in Hill radii
@@ -890,6 +920,8 @@ c Remove ejected objects, reset flags, calculate new Hill and physical radii
      %      id,mem,lmem,outfile(3),itmp)
           if (opflag.ge.0) opflag = 1
           dtflag = 1
+        gpu_dirty = .true.
+        host_current = .true.
           call mce_init (tstart,algor,h0,jcen,rcen,rmax,cefac,nbod,nbig,
      %      m,xh,vh,s,rho,rceh,rphys,rce,rcrit,id,opt,outfile(2),0)
           if (algor.eq.1) then

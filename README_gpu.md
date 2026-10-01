@@ -28,7 +28,7 @@ Append this optional line after the existing settings in `param.in`:
 ```
 
 The choices are `cpu` (default), `cuda`, and `auto`. CUDA supports the general
-`BS`, conservative `BS2`, and `RADAU` algorithms, massive bodies in `big.in`, and massless or semi-active bodies in
+`BS`, conservative `BS2`, `RADAU`, and `MVS` algorithms, massive bodies in `big.in`, and massless or semi-active bodies in
 `small.in`. Small bodies can perturb big bodies but never one another. It includes Newtonian gravity, central J2/J4/J6, solar 1PN, the
 preserved PR prescription, and A1/A2/A3. A customized `mfo_user` requires CPU.
 Explicit CUDA requests fail clearly for unsupported cases. `auto` chooses CUDA
@@ -36,16 +36,17 @@ only for supported cases with at least 4096 small bodies and an available device
 it falls back to CPU if initial device allocation fails. This threshold is a
 heuristic, not a measured crossover for every system.
 
-## Why the other algorithms currently use the CPU
+## Algorithm support
 
-BS, BS2, and RADAU have CUDA timesteppers in this version.
-This is an implementation scope limit; the other algorithms can also be ported.
-Accelerating gravity alone would still leave their integration stages on the CPU
-and require state transfers during force evaluations.
+BS, BS2, RADAU, and MVS have resident CUDA timesteppers. MVS retains the original
+Kepler solver, Jacobi transforms, fixed steps, and output correctors; corrected
+output is computed on scratch arrays without modifying the integration state.
+MVS requires massless small bodies. The legacy TEST selector uses the MVS stepper
+with the original identity input/output conversions.
 
-A complete port must preserve each method's numerical operations: MVS needs
-Kepler drifts, Jacobi transformations, and symplectic correctors; HYBRID needs both the symplectic path and encounter-driven BS switching.
-Each implementation also needs CPU/GPU trajectory and encounter validation.
+HYBRID remains CPU-only pending its encounter-subsystem port. Close- and
+wide-binary selectors have no implemented drivers in this distribution. A
+custom Fortran `mfo_user` requires CPU; it cannot automatically run as device code.
 
 The GPU retains the BS midpoint stages, extrapolation table, error reductions,
 and encounter screening between accepted steps. The CPU retains scheduling,
@@ -55,9 +56,9 @@ actual collisions. The original shared adaptive timestep and tolerance test
 are retained: one difficult orbit can limit the entire ensemble.
 
 Body capacity is counted from the input before allocating arrays. The original
-2000-body limit is removed from all three executables. GPU workspace is about
-760 bytes per body plus encounter records; one million bodies needs about
-0.76 GB for these device arrays. CPU encounter capacity is sized to the possible
+2000-body limit is removed from all three executables. GPU workspace depends on the selected
+algorithm, with additional storage for extrapolation or predictor coefficients
+and encounter records. CPU encounter capacity is sized to the possible
 interacting pairs, so host memory still depends on the number of massive bodies.
 GPU event storage grows when necessary. The legacy output encoding limits the
 body count to roughly 11.2 million; this is not a tested capacity claim.

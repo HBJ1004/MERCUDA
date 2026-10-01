@@ -74,6 +74,37 @@ __global__ void indirect_force(Config c,const double* pos,const double* m,double
     for(int k=0;k<3;k++) result[k]=out[k];
 }
 
+__device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
+    const double u[3],double rv,const double* m,const double* ng,double a[3],int* bad) {
+    if(c.ngflag==1||c.ngflag==3) {
+        double a1=ng[j],a2=ng[c.n+j],a3=ng[2*c.n+j];
+        if((a1!=0||a3!=0)&&(r2<88.0||fabs(a1)>1e-7||fabs(a2)>1e-7||fabs(a3)>1e-7)) {
+            double q=sqrt(r2)*.3561253561253561;
+            double g=.111262*pow(q,-2.15)*pow(1.0+pow(q,5.093),-4.6142);
+            double normal[3]={r[1]*u[2]-r[2]*u[1],r[2]*u[0]-r[0]*u[2],r[0]*u[1]-r[1]*u[0]};
+            double nn=sqrt(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
+            if(a3!=0&&nn==0) { atomicExch(bad,1); return; }
+            for(int k=0;k<3;k++) a[k]+=a1*g*inv*r[k]+(a3==0?0:a3*g/nn*normal[k]);
+        }
+        if(a2!=0) {
+            double t[3],norm2=0;
+            for(int k=0;k<3;k++) { t[k]=u[k]-(rv/r2)*r[k]; norm2+=t[k]*t[k]; }
+            if(!(norm2>0)) { atomicExch(bad,1); return; }
+            double f=a2/(r2*sqrt(norm2));
+            for(int k=0;k<3;k++) a[k]+=f*t[k];
+        }
+    }
+    // The user's PR prescription is intentionally preserved, including Vt.
+    if((c.ngflag==2||c.ngflag==3)&&m[j]==0) {
+        double radius=sqrt(r2),vr=rv/radius;
+        double f=K2*ng[3*c.n+j]/(C_PR*radius*radius);
+        for(int k=0;k<3;k++) {
+            double vt=u[k]*(1.0-r[k]/radius);
+            a[k]+=f*((C_PR-1.3*2.0*vr)*r[k]/radius-1.3*vt);
+        }
+    }
+}
+
 template<bool PN> __global__ void force_kernel(Config c,const double* pos,
     const double* vel,const double* m,const double* ng,const double* ind,
     double* out,int* bad) {
@@ -105,33 +136,7 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
     if(PN||c.ngflag) {
         for(int k=0;k<3;k++) { u[k]=vel[k*c.n+j]; rv+=r[k]*u[k]; }
     }
-    if(c.ngflag==1||c.ngflag==3) {
-        double a1=ng[j],a2=ng[c.n+j],a3=ng[2*c.n+j];
-        if((a1!=0||a3!=0)&&(r2<88.0||fabs(a1)>1e-7||fabs(a2)>1e-7||fabs(a3)>1e-7)) {
-            double q=sqrt(r2)*.3561253561253561;
-            double g=.111262*pow(q,-2.15)*pow(1.0+pow(q,5.093),-4.6142);
-            double normal[3]={r[1]*u[2]-r[2]*u[1],r[2]*u[0]-r[0]*u[2],r[0]*u[1]-r[1]*u[0]};
-            double nn=sqrt(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
-            if(a3!=0&&nn==0) { atomicExch(bad,1); return; }
-            for(int k=0;k<3;k++) a[k]+=a1*g*inv*r[k]+(a3==0?0:a3*g/nn*normal[k]);
-        }
-        if(a2!=0) {
-            double t[3],norm2=0;
-            for(int k=0;k<3;k++) { t[k]=u[k]-(rv/r2)*r[k]; norm2+=t[k]*t[k]; }
-            if(!(norm2>0)) { atomicExch(bad,1); return; }
-            double f=a2/(r2*sqrt(norm2));
-            for(int k=0;k<3;k++) a[k]+=f*t[k];
-        }
-    }
-    // The user's PR prescription is intentionally preserved, including Vt.
-    if((c.ngflag==2||c.ngflag==3)&&m[j]==0) {
-        double radius=sqrt(r2),vr=rv/radius;
-        double f=K2*ng[3*c.n+j]/(C_PR*radius*radius);
-        for(int k=0;k<3;k++) {
-            double vt=u[k]*(1.0-r[k]/radius);
-            a[k]+=f*((C_PR-1.3*2.0*vr)*r[k]/radius-1.3*vt);
-        }
-    }
+    nongrav(c,j,r,r2,inv,u,rv,m,ng,a,bad);
     if(PN) {
         double v2=u[0]*u[0]+u[1]*u[1]+u[2]*u[2];
         double f=c.mu*inv3/(C_PN*C_PN),radial=4.0*c.mu*inv-v2;
@@ -202,6 +207,7 @@ __global__ void accept(int n,int levels,const double* d,double* xx,double* vv) {
 
 #include "mercury_cuda_adaptive.cuh"
 #include "mercury_cuda_radau.cuh"
+#include "mercury_cuda_symplectic.cuh"
 
 __device__ void minimum(double d0,double d1,double v0,double v1,double h,double& d,double& t) {
     if(v0*h>0||v1*h<0) { d=fmin(d0,d1); t=d0<=d1?-h:0; return; }
@@ -322,14 +328,14 @@ extern "C" void mercury_cuda_free() {
     device_events=nullptr; capacity=0; event_capacity=0; host_events.clear();
 }
 extern "C" int mercury_cuda_configure(int method) {
-    if(method!=2&&method!=3&&method!=4) return 1;
+    if(method!=1&&method!=2&&method!=3&&method!=4&&method!=9) return 1;
     if(method!=algorithm) mercury_cuda_free();
     algorithm=method;
     try { if(method==4) initialize_radau(); }
     catch(const std::exception& e) { return error(e); }
-    ra_reset=true; return 0;
+    ra_reset=true; sym_reset=true; return 0;
 }
-extern "C" void mercury_cuda_reset(int flag) { if(flag!=2) ra_reset=true; }
+extern "C" void mercury_cuda_reset(int flag) { if(flag!=2) { ra_reset=true; sym_reset=true; } }
 extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double* m,
     const double* xx,const double* vv,const double* ng,const double* jcen,
     const double* limits,const double* radii) {
@@ -344,9 +350,10 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
             allocate(boxes,size_t(4)*n); allocate(transfer,size_t(4)*n);
             allocate(partial,blocks(n)); allocate(maximum,1); allocate(indirect,3);
             allocate(fault,1); allocate(event_count,1); reserve_events(4096);
+            if(algorithm==1||algorithm==9) allocate(sym,size_t(18)*n);
             capacity=n;
         }
-        ra_reset=true;
+        ra_reset=true; sym_reset=true;
         cfg={n,nbig,ngflag,m[0],jcen[0],jcen[1],jcen[2]}; pn_enabled=pn!=0;
         check(cudaMemcpy(mass,m,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rce,limits,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
@@ -360,6 +367,9 @@ extern "C" int mercury_cuda_step(double time,double* h,double* hdid,double tol,i
     try {
         int n=cfg.n; int64_t before=nforces; *rejected=0;
         check(cudaMemset(fault,0,sizeof(int)));
+        if(algorithm==1||algorithm==9) {
+            mvs_step(*h); *hdid=*h; *forces=nforces-before; return 0;
+        }
         if(algorithm==4) {
             radau_step(time,h,hdid,tol,rejected);
             *forces=nforces-before; return 0;
@@ -415,10 +425,12 @@ extern "C" int mercury_cuda_download(double* xx,double* vv,int previous) {
 }
 extern "C" int mercury_cuda_events(double time,double h,double radius,const MercuryEvent** result,int* count) {
     try {
-        bounding_boxes<<<blocks(cfg.n),THREADS>>>(cfg.n,h,oldx,oldv,x,v,rce,boxes);
+        bool mvs=algorithm==1||algorithm==9;
+        const double *px=mvs?sym:oldx,*pv=mvs?sym+3*cfg.n:oldv,*fv=mvs?sym+6*cfg.n:v;
+        bounding_boxes<<<blocks(cfg.n),THREADS>>>(cfg.n,h,px,pv,x,fv,rce,boxes);
         for(;;) {
             check(cudaMemset(event_count,0,sizeof(int)));
-            pair_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,oldx,oldv,x,v,mass,rce,rphys,boxes,event_capacity,event_count,device_events);
+            pair_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,px,pv,x,fv,mass,rce,rphys,boxes,event_capacity,event_count,device_events);
             central_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,radius,oldx,oldv,x,v,mass,event_capacity,event_count,device_events);
             check(cudaMemcpy(count,event_count,sizeof(int),cudaMemcpyDeviceToHost));
             if(*count<=event_capacity) break;
@@ -439,5 +451,18 @@ extern "C" int mercury_cuda_force(double* aa) {
         int bad; check(cudaMemcpy(&bad,fault,sizeof(int),cudaMemcpyDeviceToHost));
         if(bad) throw std::runtime_error("Nonfinite force or undefined orbit direction");
         download_array(acc,aa); return 0;
+    } catch(const std::exception& e) { return error(e); }
+}
+
+extern "C" int mercury_cuda_export(double h,int physical,double* xx,double* vv) {
+    try {
+        if(physical&&algorithm==1) {
+            copy_vector(sym+12*cfg.n,x); copy_vector(sym+15*cfg.n,v);
+            corrector(sym+12*cfg.n,sym+15*cfg.n,h,false);
+            download_array(sym+12*cfg.n,xx); download_array(sym+15*cfg.n,vv);
+            int bad; check(cudaMemcpy(&bad,fault,sizeof(int),cudaMemcpyDeviceToHost));
+            if(bad) throw std::runtime_error("Output corrector failed");
+        } else { download_array(x,xx); download_array(v,vv); }
+        return 0;
     } catch(const std::exception& e) { return error(e); }
 }
