@@ -69,7 +69,7 @@ by zero and overflow.
 | Capacity | Empty systems, thread/block boundaries, the auto-backend threshold, 100,000 particles and 257 massive bodies |
 | Errors | Missing files, invalid settings, nonfinite values, invalid orbital elements and undefined force directions |
 | Custom forces | Representative time-dependent and velocity-dependent CPU forces; CUDA rejection |
-| Memory | Device lifecycle and encounter-buffer growth; host AddressSanitizer/UBSan; NVIDIA Compute Sanitizer |
+| Memory | Device lifecycle and encounter-buffer growth; host AddressSanitizer/UBSan; NVIDIA Compute Sanitizer on both the lifecycle worker and real integration programs |
 
 The claim catalog is in [tests/validation/catalog.json](../tests/validation/catalog.json).
 The exact fixtures and settings are recorded in the machine-readable report.

@@ -30,7 +30,7 @@ def exercise(method):
         xx,vv = arr([0.]*(3*n)),arr([0.]*(3*n))
         assert gpu.mercury_cuda_download(xx,vv,0) == 0
         assert list(xx) == list(x) and list(vv) == list(v)
-        if method in (2,3,4):
+        if method in (1,2,3,4,9):
             h,done = D(.001),D(0); forces,rejected = C.c_int64(),C.c_int64()
             assert gpu.mercury_cuda_step(0.,C.byref(h),C.byref(done),1e-12,C.byref(forces),C.byref(rejected)) == 0
             assert done.value > 0
@@ -46,6 +46,9 @@ def exercise(method):
             pi,pj = (I*count)(*([2]*count)),(I*count)(*([3]*count))
             assert gpu.mercury_cuda_encounter_enter(n,3,m,x,v,rc,rc,rc,count,pi,pj) == 0
             assert gpu.mercury_cuda_encounter_update(m,x,v) == 0
+            h,done = D(.001),D(0); forces,rejected = C.c_int64(),C.c_int64()
+            assert gpu.mercury_cuda_step(0.,C.byref(h),C.byref(done),1e-12,C.byref(forces),C.byref(rejected)) == 0
+            assert done.value > 0
             gpu.mercury_cuda_encounter_exit()
         gpu.mercury_cuda_free()
 

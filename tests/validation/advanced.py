@@ -166,18 +166,33 @@ def sanitize(c):
                 options = ['--tool',tool,'--error-exitcode','99','--target-processes','all']
                 if tool=='memcheck': options += ['--leak-check','full']
                 env = dict(profile.environment(),MERCURY_TEST_GPU_LIBRARY_READY='1')
-                result = c.command([c.sanitizer,*options,sys.executable,str(worker),str(method)],
-                                   env=env,timeout=240,check=False)
-                text = result.stdout+result.stderr
-                if "Failed to initialize WDDM debugger interface" in text:
-                    raise c.unavailable("Windows CUDA debugger interface is disabled; run NVIDIA EnableDebuggerInterface.bat as administrator and rerun test-sanitize")
-                if result.returncode:
-                    raise AssertionError("Sanitizer exit "+str(result.returncode)+": "+text[-4000:])
-                if not re.search(r'(ERROR SUMMARY: 0 errors|RACECHECK SUMMARY: 0 hazards)',text):
-                    raise AssertionError('Sanitizer did not produce a clean error summary: '+text[-4000:])
-                if re.search(r'========= (WARNING|ERROR):',text):
-                    raise AssertionError('Sanitizer warning/error: '+text[-4000:])
-                return {'tool':tool,'algorithm':method,'error_summary':0}
+                def instrument(command,cwd=ROOT):
+                    result=c.command([c.sanitizer,*options,*command],env=env,cwd=cwd,timeout=240,check=False)
+                    text=result.stdout+result.stderr
+                    if "Failed to initialize WDDM debugger interface" in text:
+                        raise c.unavailable("Windows CUDA debugger interface is disabled; run NVIDIA EnableDebuggerInterface.bat as administrator and rerun test-sanitize")
+                    if result.returncode:
+                        raise AssertionError("Sanitizer exit "+str(result.returncode)+": "+text[-4000:])
+                    if not re.search(r'(ERROR SUMMARY: 0 errors|RACECHECK SUMMARY: 0 hazards)',text):
+                        raise AssertionError('Sanitizer did not produce a clean error summary: '+text[-4000:])
+                    if re.search(r'========= (WARNING|ERROR):',text):
+                        raise AssertionError('Sanitizer warning/error: '+text[-4000:])
+                instrument([sys.executable,str(worker),str(method)])
+                # Exercise the real driver too, including symplectic kernels/events.
+                algorithm={1:'MVS',2:'BS',3:'BS2',4:'RADAU',10:'HYBRID'}[method]
+                big=[body('A',mass=1e-5,a=1),body('B',mass=1e-5,a=1.005,phase=.005)]
+                params={} if method==3 else dict(a1=1e-11,a2=-2e-11,a3=3e-11)
+                if method in (2,4): params.update(b=.001,yar=1e-11)
+                small=[tilted(body('P'+str(j),a=1.3+j*.01,phase=j*.37,**params)) for j in range(33)]
+                with tempfile.TemporaryDirectory(prefix='mercuda-sanitizer-') as tmp:
+                    path=prepare(tmp,big=big,small=small,algorithm=algorithm,backend='cuda',
+                                 pn=method in (2,4),jcen=(.1,-.01,.001),stop=.25,step=.125,interval=.125)
+                    instrument([str(profile.build/'mercury6')],cwd=path)
+                    state={**dump(path,'big.dmp'),**dump(path)}
+                    assert len(state)==35
+                    assert all(math.isfinite(z) for obj in state.values() for z in obj['x']+obj['v'])
+                return {'tool':tool,'algorithm':method,'error_summary':0,
+                        'processes':['device-lifecycle-worker','integration-driver']}
             c.record('sanitize',f'{tool}/{method}',check)
     # Instrument host-side vector packing as well as Fortran array accesses.
     def address_sanitizer():
