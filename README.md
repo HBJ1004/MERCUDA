@@ -4,10 +4,35 @@ A derivative of John E. Chambers' **MERCURY6** with GPU acceleration for BS,
 BS2, RADAU, MVS and HYBRID, solar 1PN corrections, preserved radiation/PR forces,
 and Yarkovsky drift. CPU mode also includes performance and integration fixes.
 
-The workflow stays familiar: `make`, settings in `.in` files, and the same
-`mercury6`, `element6` and `close6` executables. CUDA requires an NVIDIA GPU and
-CUDA toolkit; select `execution backend = cuda` in `param.in` to enable it.
-CPU remains the default.
+## TL;DR for MERCURY6 users
+
+Keep your usual `.in` files and run the same programs without new command line
+options. The additional choices are:
+
+1. **Build:** `make` includes GPU support if it finds NVIDIA's CUDA toolkit
+   (`nvcc`); otherwise it builds CPU only. `make cpu` forces a CPU-only build.
+   Use `make clean-build` before changing build settings; it keeps simulation files.
+2. **Enable GPU:** append this line **after all existing settings** in `param.in`:
+
+   ```text
+    execution backend = cuda
+   ```
+
+   CPU is the default if omitted; `auto` chooses a backend by particle count and
+   availability. CUDA needs an NVIDIA GPU, driver and toolkit.
+3. **Check force settings:** PN uses the existing relativity switch. Yarkovsky
+   uses `A2=<value>` on the body's parameter line in `big.in` or `small.in`
+   (AU/day² at 1 AU; default zero). PR uses `b=<beta>` for massless bodies.
+   **Use BS or RADAU for PN, PR or Yarkovsky.** Old cometary A2 values now have a
+   different meaning.
+4. **Run:** `./mercury6`, then `./element6` or `./close6` as usual. Check
+   `info.out` to confirm CPU or CUDA actually ran. Custom `mfo_user` forces need CPU.
+5. **Restart or rerun:** dynamics still come from dumps; only the backend can be
+   overridden in ordinary `param.in`. Old dumps with PN or nonzero A2 are
+   incompatible. For a fresh run, save needed results before `make rm-gen`
+   removes outputs and dumps. **`make clean` also deletes `.in` files.**
+
+[Usage and compatibility details](README_MERCUDA.md).
 
 - **[MERCUDA guide](README_MERCUDA.md)** — a first run, GPU setup, force settings and restarts.
 - **[Original MERCURY6 README](README_MERCURY6.md)** and **[manual](mercury6.man)** — standard inputs, outputs, postprocessing and restarts.
