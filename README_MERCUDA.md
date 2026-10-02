@@ -22,7 +22,7 @@ precedence where they disagree, including compilation, PN, A2, and restarts.
 | Body capacity | Allocates from input counts in all three executables instead of the original fixed 2,000-body limit. Memory, output encoding and disk space still limit large runs. |
 | Integration corrections | Direction-aware adaptive scheduling, BS2 error-norm correction, signed BS stages, RADAU velocity-dependent prediction, and event/impact timing corrections apply on CPU too. |
 | Relativity | Honors the existing input switch and uses a central-mass Cartesian Schwarzschild 1PN acceleration, replacing the supplied Marion-based prescription. Original unmodified MERCURY6's PN routine was a placeholder. |
-| Radiation pressure / PR | Preserves the supplied modified routine exactly, including its component-wise transverse velocity, solar-wind factor 0.3, mass gating and light-speed constant. Original unmodified MERCURY6's PR routine was a placeholder. |
+| Radiation pressure / PR | Preserves the supplied prescription, based on [Burns, Lamy & Soter (1979)](https://doi.org/10.1016/0019-1035(79)90050-2), [Liou, Zook & Jackson (1995)](https://doi.org/10.1006/icar.1995.1120), and [Klačka et al. (2012)](https://doi.org/10.1111/j.1365-2966.2012.20321.x). Original unmodified MERCURY6's PR routine was a placeholder. |
 | Non-gravitational coefficients | A1/A3 retain the cometary law. A2 defaults to zero and now specifies an inverse-square transverse Yarkovsky acceleration, including for massive bodies. Old cometary A2 values have a different meaning. |
 | Diagnostics and dumps | Reports the execution backend and workload/timing counters; dumps preserve force parameters and identify the force model. |
 
