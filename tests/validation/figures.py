@@ -7,6 +7,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 
 
 def plot(output):
@@ -28,7 +29,9 @@ def plot(output):
     ax.set_yticks(range(len(names)),[name.replace('-',' ').capitalize() for name in names])
     ax.invert_yaxis(); ax.set_xscale('log'); ax.set_xlim(.7,max(sum(grouped[n]) for n in names)*3)
     ax.set_xlabel('Validation cases (logarithmic scale)')
-    ax.set_title('Validation coverage · '+report['status'].capitalize()); ax.legend(loc='lower right')
+    ax.set_title('Validation coverage · '+report['status'].capitalize())
+    ax.legend(handles=[Patch(facecolor=color,label=label) for color,label in
+                       zip(colors,['Passed','Failed','Incomplete'])],loc='lower right')
     ax.grid(axis='x',alpha=.15); ax.set_axisbelow(True)
     fig.savefig(output/'coverage.png',dpi=180); plt.close(fig)
     curves = defaultdict(list)
@@ -37,13 +40,13 @@ def plot(output):
         for entry in row.get('metrics',{}).get('convergence',[]):
             curves[row['settings'].get('method','unknown')].append(entry['errors'])
     if curves:
-        fig,ax = plt.subplots(figsize=(7,4.5),constrained_layout=True)
+        fig,ax = plt.subplots(figsize=(8.5,4.5),constrained_layout=True)
         for method,series in sorted(curves.items()):
             maximum = [max(values[i] for values in series) for i in range(3)]
             ax.semilogy([0,1,2],maximum,'o-',linewidth=2.5,markersize=7,label=method)
         ax.set_xticks([0,1,2],['Coarse','Intermediate','Fine'])
         ax.set_ylabel('Maximum normalized state error'); ax.set_xlabel('Refinement level')
-        ax.grid(alpha=.2); ax.legend(loc='upper right'); ax.set_title('Trajectory convergence')
+        ax.grid(alpha=.2); ax.legend(loc='upper left',bbox_to_anchor=(1.02,1)); ax.set_title('Trajectory convergence')
         fig.savefig(output/'convergence.png',dpi=180); plt.close(fig)
     artifacts = {name: hashlib.sha256((output/name).read_bytes()).hexdigest()
                  for name in ('coverage.png','convergence.png') if (output/name).exists()}

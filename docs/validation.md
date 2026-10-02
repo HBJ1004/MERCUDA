@@ -44,9 +44,22 @@ To repeat only the memory, initialization, synchronization and race checks:
 make VALIDATION_PYTHON=build/validation/venv/bin/python test-sanitize
 ```
 
-On Windows/WSL, Compute Sanitizer may require enabling NVIDIA's Windows debugger
-interface. A blocked sanitizer check is recorded as **incomplete**, never as a
-successful check. See [NVIDIA's documentation](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html).
+On Windows/WSL, Compute Sanitizer may report that the WDDM debugger interface
+cannot initialize. A blocked sanitizer check is recorded as **incomplete**, never
+as a successful check. To enable the interface, follow
+[NVIDIA's Windows instructions](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html#windows-specific-behavior):
+
+1. Open a Windows Command Prompt as administrator.
+2. Enable NVIDIA's debugger interface:
+
+   ```bat
+   reg add "HKLM\SOFTWARE\NVIDIA Corporation\GPUDebugger" /v EnableInterface /t REG_DWORD /d 1 /f
+   ```
+
+3. Return to WSL and repeat `make test-sanitize` with the validation Python
+   setting shown above. The report must confirm that the checks actually ran.
+
+This is a Windows setting; the validation runner does not change it.
 
 The full campaign can take hours. A nonzero exit status means the campaign
 failed or is incomplete. A CPU-only pass certifies only the CPU scope. Debug
@@ -89,6 +102,30 @@ must improve an error by at least a factor of two unless it is already within
 ten times the reference/roundoff floor. These bounds are fixed in the catalog;
 they are test acceptance criteria, not a universal accuracy guarantee.
 
+## Validation recorded on 2 October 2026
+
+The complete CPU campaign passed **12,988 validation cases** at revision
+[`3a6c32d`](https://github.com/HBJ1004/MERCUDA/commit/3a6c32d5ee331fbf6cba4a392fd73d7a67ca4133),
+using optimized and debug builds. `make test` also passed all 52 regression tests.
+The combined CPU/CUDA campaign passed **25,944 cases**, with **zero failures**.
+All test groups ran, but **20 device-sanitizer checks were blocked** by the
+Windows debugger interface. Its overall status remains **incomplete**. The host
+AddressSanitizer/UBSan check passed. The GPU was an NVIDIA RTX 4070, with driver
+591.86 and CUDA toolkit 12.6; GNU Fortran 13.3 was used for all profiles.
+
+An environment restart interrupted the combined run. It continued from a
+13,400-case checkpoint after verifying the numerical source, fixtures and tools;
+this continuation is recorded in the report provenance.
+
+Counts include expected input rejections. In the combined force matrix,
+9,280 cases compare trajectories with an independent reference and 11,200 check
+that unsupported combinations are rejected.
+
+Tests exposed and fixed a CUDA encounter-buffer overread, exact-parabolic input
+and element-conversion errors, singular initial configurations, missing encounter
+records when stopping, postprocessing bounds errors, and misleading GPU fallback
+logging. The supplied PR formula was preserved.
+
 ## Results and limits
 
 Reports, CSV tables and Python plots are written to `results/validation/full/`
@@ -96,7 +133,10 @@ or `results/validation/cpu/`. Sanitizer-only results go to
 `results/validation/sanitize/`. Results and build products are gitignored.
 Simulation directories are temporary and removed after each test. The report
 records source hashes, revision, tool versions, hardware, case settings,
-measured errors and unavailable checks. Development subsets are always marked
+measured errors and unavailable checks. Figure hashes and rendering provenance
+are in `rendering.json`. The convergence figure shows the worst error at each
+refinement level; coarse settings can exceed the final acceptance bound.
+Development subsets are always marked
 incomplete and cannot substitute for a full campaign.
 
 Passing on one GPU does not certify every driver or GPU architecture. Arbitrary
