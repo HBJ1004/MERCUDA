@@ -61,16 +61,14 @@ __global__ void ra_correct(int n,int level,const double* aa,const double* a0,dou
     else b[level*3*n+z]+=delta;
 }
 __global__ void ra_error(int n,const double* b,const int* bad,double* out) {
-    __shared__ double values[THREADS];
     int j=blockIdx.x*blockDim.x+threadIdx.x; double val=0;
     if(j>0&&j<n) for(int k=0;k<3;k++) {
         double a=b[18*n+k*n+j];
         val=isfinite(a)?fmax(val,fabs(a)):INFINITY;
     }
     if(*bad) val=INFINITY;
-    values[threadIdx.x]=val; __syncthreads();
-    for(int s=THREADS/2;s;s/=2) { if(threadIdx.x<s) values[threadIdx.x]=fmax(values[threadIdx.x],values[threadIdx.x+s]); __syncthreads(); }
-    if(threadIdx.x==0) out[blockIdx.x]=values[0];
+    val=block_reduce(val,MaxOp());
+    if(threadIdx.x==0) out[blockIdx.x]=val;
 }
 __global__ void ra_finish(int n,double t,double next,const double* ox,const double* ov,
     const double* a0,double* b,double* e,double* xx,double* vv) {

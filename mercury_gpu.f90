@@ -5,6 +5,7 @@ module mercury_gpu
   implicit none
   logical :: gpu_enabled=.false., gpu_dirty=.true., host_current=.true.
   integer :: current_n=0, event_size=0
+  character(len=512) :: info_file=''
   type, bind(C) :: gpu_event
     integer(c_int) :: i,j,kind,now
     real(c_double) :: distance,time,xi(6),xj(6)
@@ -107,7 +108,7 @@ contains
   subroutine gpu_refresh_events(time,h,rcen)
     real(8) :: time,h,rcen
     type(c_ptr) :: ptr
-    if(find_events(time,h,rcen,ptr,event_size)/=0) call fail('CUDA event refresh failed')
+    if(find_events(time,h,rcen,ptr,event_size)/=0) call fail('CUDA event screening failed')
     nullify(events)
     if(event_size>0) call c_f_pointer(ptr,events,[event_size])
   end subroutine
@@ -122,6 +123,7 @@ contains
     gpu_enabled=backend_request/=0.and.supported.and.available()/=0
     if(backend_request==2.and.n-nbig<4096) gpu_enabled=.false.
     gpu_dirty=.true.; host_current=.true.; current_n=0
+    inquire(unit=unit,name=info_file)
     if(gpu_enabled) then
       if(configure(algor)/=0) call fail('CUDA algorithm initialization failed')
       write(unit,'(a,i2)') ' Execution backend: CUDA, algorithm ',algor
@@ -135,12 +137,28 @@ contains
     if(.not.gpu_enabled.or..not.gpu_dirty) return
     if(upload(n,nbig,opt(7),ngflag,m,x,v,ngf,jcen,rce,rphys)/=0) then
       if(backend_request==2.and.current_n==0) then
-        write(*,'(a)') ' CUDA initialization failed; auto selected CPU.'
+        call log_fallback(' Execution backend: CPU (CUDA initialization failed; auto fallback)')
         gpu_enabled=.false.; call gpu_free(); return
       endif
       call fail('CUDA state upload failed')
     endif
     current_n=n; gpu_dirty=.false.; host_current=.true.
+  end subroutine
+  ! gpu_select already logged CUDA; record the fallback beside it in info.out.
+  subroutine log_fallback(message)
+    character(len=*),intent(in) :: message
+    integer :: u
+    logical :: is_open
+    write(*,'(a)') message
+    if(info_file=='') return
+    inquire(file=info_file,opened=is_open,number=u)
+    if(is_open) then
+      write(u,'(a)') message
+    else
+      open(newunit=u,file=info_file,status='old',access='append')
+      write(u,'(a)') message
+      close(u)
+    endif
   end subroutine
   subroutine gpu_advance(time,h,hdid,tol,dtflag)
     real(8),intent(in) :: time,tol
@@ -186,11 +204,8 @@ contains
     integer,intent(in) :: cap
     integer,intent(out) :: nclo,nhit,nowflag,iclo(cap),jclo(cap),ihit(cap),jhit(cap),chit(cap)
     real(8),intent(out) :: dclo(cap),tclo(cap),ixv(6,cap),jxv(6,cap),dhit(cap),thit(cap),thit1
-    type(c_ptr) :: ptr
     integer :: k
-    if(find_events(time,h,rcen,ptr,event_size)/=0) call fail('CUDA encounter screening failed')
-    nullify(events)
-    if(event_size>0) call c_f_pointer(ptr,events,[event_size])
+    call gpu_refresh_events(time,h,rcen)
     nclo=0; nhit=0; nowflag=0; thit1=sign(9.9d29,h)
     do k=1,event_size
       if(iand(events(k)%kind,1)/=0) then

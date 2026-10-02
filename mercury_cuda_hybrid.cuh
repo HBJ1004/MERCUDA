@@ -37,43 +37,31 @@ __global__ void hybrid_force(Config c,const double* m,const double* xx,const dou
     }
     for(int k=0;k<3;k++) { aa[k*c.n+j]=a[k]; if(!isfinite(a[k])) atomicExch(bad,1); }
 }
-__global__ void obl_indirect(Config c,const double* m,const double* xx,double* result) {
-    if(threadIdx.x||blockIdx.x) return;
-    double sum[3]={0,0,0};
-    if(c.j2!=0||c.j4!=0||c.j6!=0) for(int j=1;j<c.nmass;j++) {
-        if(m[j]==0) continue;
-        double r[3]={xx[j],xx[c.n+j],xx[2*c.n+j]},a[3];
-        obl(c,r,1/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]),a);
-        for(int k=0;k<3;k++) sum[k]+=m[j]/c.mu*a[k];
-    }
-    for(int k=0;k<3;k++) result[k]=sum[k];
-}
 void encounter_force(const double* xx,const double* vv,double* aa) {
     hybrid_force<<<blocks(cfg.n),THREADS>>>(cfg,mass,xx,vv,critical,ngf,indirect,aa,fault,true,pair_count,pair_i,pair_j);
     check(cudaGetLastError()); ++nforces;
 }
 void regular_hybrid_force() {
-    obl_indirect<<<1,1>>>(cfg,mass,x,indirect);
+    obl_reaction(x);
     hybrid_force<<<blocks(cfg.n),THREADS>>>(cfg,mass,x,v,critical,ngf,indirect,sym+9*cfg.n,fault,false,0,nullptr,nullptr);
     ++nforces;
 }
 __global__ void momentum(Config c,const double* m,const double* vv,double* out) {
     // Only actual massive sources are visited; massless ensembles cost O(Nbig).
-    if(threadIdx.x||blockIdx.x) return;
     double sum[3]={0,0,0};
-    for(int j=1;j<c.nmass;j++) for(int k=0;k<3;k++) sum[k]+=m[j]*vv[k*c.n+j];
-    for(int k=0;k<3;k++) out[k]=sum[k]/c.mu;
+    for(int j=1+threadIdx.x;j<c.nmass;j+=THREADS) for(int k=0;k<3;k++) sum[k]+=m[j]*vv[k*c.n+j];
+    for(int k=0;k<3;k++) { double s=block_reduce(sum[k],SumOp()); if(threadIdx.x==0) out[k]=s/c.mu; }
 }
 __global__ void shift_vector(int n,double h,const double* offset,const double* src,double* dst) {
     int j=blockIdx.x*blockDim.x+threadIdx.x; if(j>=n) return;
     for(int k=0;k<3;k++) dst[k*n+j]=j?src[k*n+j]+h*offset[k]:0;
 }
 void solar_drift(double h) {
-    momentum<<<1,1>>>(cfg,mass,v,indirect);
+    momentum<<<1,THREADS>>>(cfg,mass,v,indirect);
     shift_vector<<<blocks(cfg.n),THREADS>>>(cfg.n,h,indirect,x,x);
 }
 void physical_velocity(const double* src,double* dst) {
-    momentum<<<1,1>>>(cfg,mass,src,indirect);
+    momentum<<<1,THREADS>>>(cfg,mass,src,indirect);
     shift_vector<<<blocks(cfg.n),THREADS>>>(cfg.n,1,indirect,src,dst);
 }
 __global__ void sniff(Config c,double h,const double* ox,const double* ov,
@@ -81,9 +69,7 @@ __global__ void sniff(Config c,double h,const double* ox,const double* ov,
     int cap,int* count,MercuryEvent* out) {
     int j=blockIdx.x*blockDim.x+threadIdx.x; if(j<1||j>=c.n) return;
     for(int i=1;i<c.nbig&&i<j;i++) {
-        // bounding_boxes expanded both members; MCE_SNIF expands only big bodies.
-        double si=.2*crit[i],sj=(j<c.nbig?.2:1.2)*crit[j];
-        if(bb[c.n+i]-si<bb[j]+sj||bb[c.n+j]-sj<bb[i]+si||bb[3*c.n+i]-si<bb[2*c.n+j]+sj||bb[3*c.n+j]-sj<bb[2*c.n+i]+si) continue;
+        if(bb[c.n+i]<bb[j]||bb[c.n+j]<bb[i]||bb[3*c.n+i]<bb[2*c.n+j]||bb[3*c.n+j]<bb[2*c.n+i]) continue;
         double d0=0,d1=0,t0=0,t1=0;
         for(int k=0;k<3;k++) {
             int a=k*c.n+i,b=k*c.n+j; double p=ox[a]-ox[b],q=xx[a]-xx[b];

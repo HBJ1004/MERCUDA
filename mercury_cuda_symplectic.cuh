@@ -16,8 +16,10 @@ __global__ void jacobi(Config c,const double* m,const double* xx,const double* v
         }
     }
 }
+// MDT_MVS, MDT_HY and MCO_MVS2H discard drift_one's iflag and keep its
+// best-effort state, so a nonconverged drift is not a fault here either.
 __global__ void kepler_drift(Config c,double h,const double* m,double* xx,double* vv,
-    double* jx,double* jv,int use_jacobi,int* bad) {
+    double* jx,double* jv,int use_jacobi) {
     int j=blockIdx.x*blockDim.x+threadIdx.x; if(j==0||j>=c.n) return;
     double mu=c.mu; double *px=xx,*pv=vv;
     if(use_jacobi&&j<c.nbig) {
@@ -27,12 +29,11 @@ __global__ void kepler_drift(Config c,double h,const double* m,double* xx,double
     }
     int flag=0;
     drift_one__(&mu,px+j,px+c.n+j,px+2*c.n+j,pv+j,pv+c.n+j,pv+2*c.n+j,&h,&flag);
-    if(flag) atomicExch(bad,1);
 }
 __global__ void mvs_prefix(Config c,const double* m,const double* xx,const double* jx,
     double* a1,double* a2,double* terms) {
     if(threadIdx.x||blockIdx.x) return;
-    for(int k=0;k<9;k++) terms[k]=0;
+    for(int k=0;k<6;k++) terms[k]=0;
     double inside=0,previous[3]={0,0,0};
     if(c.nbig>1) for(int k=0;k<3;k++) { a1[k*c.n+1]=0; a2[k*c.n+1]=0; }
     for(int j=2;j<c.nbig;j++) {
@@ -52,15 +53,10 @@ __global__ void mvs_prefix(Config c,const double* m,const double* xx,const doubl
         double inv=1/sqrt(r2),f=m[1]*inv*inv*inv;
         for(int k=0;k<3;k++) terms[3+k]=terms[k]-f*xx[k*c.n+1];
     }
-    if(c.j2!=0||c.j4!=0||c.j6!=0) for(int j=1;j<c.n;j++) {
-        if(m[j]==0) continue;
-        double r[3]={xx[j],xx[c.n+j],xx[2*c.n+j]},a[3];
-        obl(c,r,1/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]),a);
-        for(int k=0;k<3;k++) terms[6+k]-=m[j]/c.mu*a[k];
-    }
 }
 __global__ void mvs_acceleration(Config c,const double* m,const double* xx,const double* vv,
-    const double* ng,const double* a1,const double* a2,const double* terms,double* aa,int* bad) {
+    const double* ng,const double* a1,const double* a2,const double* terms,const double* ind,
+    double* aa,int* bad) {
     int j=blockIdx.x*blockDim.x+threadIdx.x; if(j>=c.n) return;
     if(j==0) { for(int k=0;k<3;k++) aa[k*c.n]=0; return; }
     double r[3]={xx[j],xx[c.n+j],xx[2*c.n+j]},a[3]={0,0,0};
@@ -73,7 +69,7 @@ __global__ void mvs_acceleration(Config c,const double* m,const double* xx,const
     double r2=r[0]*r[0]+r[1]*r[1]+r[2]*r[2],inv=1/sqrt(r2);
     if(c.j2!=0||c.j4!=0||c.j6!=0) {
         double ao[3]; obl(c,r,inv,ao);
-        for(int k=0;k<3;k++) a[k]+=ao[k]-terms[6+k];
+        for(int k=0;k<3;k++) a[k]+=ao[k]+ind[k];
     }
     if(c.ngflag) {
         double u[3]={vv[j],vv[c.n+j],vv[2*c.n+j]},rv=r[0]*u[0]+r[1]*u[1]+r[2]*u[2];
@@ -84,15 +80,30 @@ __global__ void mvs_acceleration(Config c,const double* m,const double* xx,const
 __global__ void kick(int n,double h,const double* aa,double* vv) {
     int z=blockIdx.x*blockDim.x+threadIdx.x; if(z<3*n) vv[z]+=h*aa[z];
 }
+__global__ void obl_indirect(Config c,const double* m,const double* xx,double* result) {
+    double sum[3]={0,0,0};
+    for(int j=1+threadIdx.x;j<c.nmass;j+=THREADS) {
+        if(m[j]==0) continue;
+        double r[3]={xx[j],xx[c.n+j],xx[2*c.n+j]},a[3];
+        obl(c,r,1/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]),a);
+        for(int k=0;k<3;k++) sum[k]+=m[j]/c.mu*a[k];
+    }
+    for(int k=0;k<3;k++) { double s=block_reduce(sum[k],SumOp()); if(threadIdx.x==0) result[k]=s; }
+}
+// Central-body oblateness reaction from massive bodies, into indirect.
+void obl_reaction(const double* xx) {
+    if(cfg.j2!=0||cfg.j4!=0||cfg.j6!=0) obl_indirect<<<1,THREADS>>>(cfg,mass,xx,indirect);
+}
 void mvs_force(double* xx,double* vv,double* aa,bool jacobi_ready=false) {
     if(!jacobi_ready) jacobi<<<1,1>>>(cfg,mass,xx,vv,wx,wv,0);
     mvs_prefix<<<1,1>>>(cfg,mass,xx,wx,ex,ev,table);
-    mvs_acceleration<<<blocks(cfg.n),THREADS>>>(cfg,mass,xx,vv,ngf,ex,ev,table,aa,fault);
+    obl_reaction(xx);
+    mvs_acceleration<<<blocks(cfg.n),THREADS>>>(cfg,mass,xx,vv,ngf,ex,ev,table,indirect,aa,fault);
     ++nforces;
 }
 void mvs_drift(double* xx,double* vv,double h) {
     jacobi<<<1,1>>>(cfg,mass,xx,vv,wx,wv,0);
-    kepler_drift<<<blocks(cfg.n),THREADS>>>(cfg,h,mass,xx,vv,wx,wv,1,fault);
+    kepler_drift<<<blocks(cfg.n),THREADS>>>(cfg,h,mass,xx,vv,wx,wv,1);
     jacobi<<<1,1>>>(cfg,mass,wx,wv,xx,vv,1);
 }
 void corrector(double* xx,double* vv,double h,bool inverse) {
@@ -118,5 +129,5 @@ void mvs_step(double h) {
     kick<<<blocks(3*n),THREADS>>>(n,.5*h,sym+9*n,v);
     sym_reset=false;
     int bad; check(cudaMemcpy(&bad,fault,sizeof(int),cudaMemcpyDeviceToHost));
-    if(bad) throw std::runtime_error("MVS Kepler drift or force failed");
+    if(bad) throw std::runtime_error("MVS force failed");
 }

@@ -19,7 +19,8 @@ def body(name="PARTICLE", mass=0.0, a=1.0, e=0.1, phase=0.0, **params):
 
 def prepare(path, small=None, big=None, *, epoch=0.0, start=0.0, stop=100.0,
             algorithm="BS", step=1.0, interval=7.3, tol=1e-12,
-            pn=False, backend="cpu", collisions=False, user_force=False):
+            pn=False, backend="cpu", collisions=False, user_force=False,
+            jcen=(0.0, 0.0, 0.0)):
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     for name in ["message.in", "files.in"]:
@@ -27,7 +28,7 @@ def prepare(path, small=None, big=None, *, epoch=0.0, start=0.0, stop=100.0,
     values = [algorithm, start, stop, interval, step, tol, "no",
               "yes" if collisions else "no", "no", "days", "no", "high",
               "unused", "yes" if pn else "no", "yes" if user_force else "no", 100.0, 0.005, 1.0,
-              0.0, 0.0, 0.0, "unused", "unused", 3.0, 5000, 100]
+              *jcen, "unused", "unused", 3.0, 5000, 100]
     labels = [line.split("=")[0] for line in (ROOT/"param.in.sample").read_text().splitlines()
               if line and not line.startswith(")")][:26]
     (path/"param.in").write_text(

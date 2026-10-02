@@ -44,6 +44,22 @@ int error(const std::exception& e) {
     return 1;
 }
 int blocks(int n) { return (n+THREADS-1)/THREADS; }
+void release(void* p) {
+    auto it=std::find(allocations.begin(),allocations.end(),p);
+    if(it==allocations.end()) return;
+    allocations.erase(it); check(cudaFree(p));
+}
+struct MaxOp { __device__ double operator()(double a,double b) const { return fmax(a,b); } };
+struct SumOp { __device__ double operator()(double a,double b) const { return a+b; } };
+// Fixed-order tree reduction across one THREADS-wide block; every thread
+// receives the result. All threads of the block must call it.
+template<class Op> __device__ double block_reduce(double value,Op op) {
+    __shared__ double values[THREADS];
+    values[threadIdx.x]=value; __syncthreads();
+    for(int s=THREADS/2;s;s/=2) { if(threadIdx.x<s) values[threadIdx.x]=op(values[threadIdx.x],values[threadIdx.x+s]); __syncthreads(); }
+    double result=values[0]; __syncthreads();
+    return result;
+}
 
 __global__ void layout(int n,const double* src,double* dst,int components,int to_soa) {
     int j=blockIdx.x*blockDim.x+threadIdx.x;
@@ -63,9 +79,8 @@ __device__ void obl(Config c,const double r[3],double inv,double a[3]) {
     a[0]=r[0]*s*f; a[1]=r[1]*s*f; a[2]=r[2]*s*(f-g);
 }
 __global__ void indirect_force(Config c,const double* pos,const double* m,double* result) {
-    if(threadIdx.x||blockIdx.x) return;
     double out[3]={0,0,0};
-    for(int j=1;j<c.nmass;j++) {
+    for(int j=1+threadIdx.x;j<c.nmass;j+=THREADS) {
         if(m[j]==0) continue;
         double r[3]={pos[j],pos[c.n+j],pos[2*c.n+j]};
         double inv=1.0/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
@@ -75,7 +90,7 @@ __global__ void indirect_force(Config c,const double* pos,const double* m,double
             for(int k=0;k<3;k++) out[k]+=m[j]/c.mu*a[k];
         }
     }
-    for(int k=0;k<3;k++) result[k]=out[k];
+    for(int k=0;k<3;k++) { double sum=block_reduce(out[k],SumOp()); if(threadIdx.x==0) result[k]=sum; }
 }
 
 __device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
@@ -153,7 +168,7 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
 }
 void force(const double* xx,const double* vv,double* aa) {
     if(encounter_mode) { encounter_force(xx,vv,aa); return; }
-    indirect_force<<<1,1>>>(cfg,xx,mass,indirect);
+    indirect_force<<<1,THREADS>>>(cfg,xx,mass,indirect);
     if(pn_enabled) force_kernel<true><<<blocks(cfg.n),THREADS>>>(cfg,xx,vv,mass,ngf,indirect,aa,fault);
     else force_kernel<false><<<blocks(cfg.n),THREADS>>>(cfg,xx,vv,mass,ngf,indirect,aa,fault);
     check(cudaGetLastError());
@@ -185,22 +200,18 @@ __global__ void extrapolate(int n,int level,int col,double f1,double f2,double* 
     d[col*6*n+j]=f1*d[(col+1)*6*n+j]-f2*d[col*6*n+j];
 }
 __global__ void estimate_error(int n,const double* d,const double* scales,const int* bad,double* p) {
-    __shared__ double values[THREADS];
     int j=blockIdx.x*blockDim.x+threadIdx.x;
     double e=0;
     if(j>0&&j<n) for(int k=0;k<6;k++) e=fmax(e,d[k*n+j]*d[k*n+j]*scales[(k/3)*n+j]);
     if(*bad) e=INFINITY;
-    values[threadIdx.x]=e; __syncthreads();
-    for(int s=THREADS/2;s;s/=2) { if(threadIdx.x<s) values[threadIdx.x]=fmax(values[threadIdx.x],values[threadIdx.x+s]); __syncthreads(); }
-    if(threadIdx.x==0) p[blockIdx.x]=values[0];
+    e=block_reduce(e,MaxOp());
+    if(threadIdx.x==0) p[blockIdx.x]=e;
 }
 __global__ void reduce_max(int n,const double* p,double* result) {
-    __shared__ double values[THREADS];
     double e=0;
     for(int j=threadIdx.x;j<n;j+=THREADS) e=fmax(e,p[j]);
-    values[threadIdx.x]=e; __syncthreads();
-    for(int s=THREADS/2;s;s/=2) { if(threadIdx.x<s) values[threadIdx.x]=fmax(values[threadIdx.x],values[threadIdx.x+s]); __syncthreads(); }
-    if(threadIdx.x==0) *result=values[0];
+    e=block_reduce(e,MaxOp());
+    if(threadIdx.x==0) *result=e;
 }
 __global__ void accept(int n,int levels,const double* d,double* xx,double* vv) {
     int j=blockIdx.x*blockDim.x+threadIdx.x;
@@ -223,17 +234,20 @@ __device__ void minimum(double d0,double d1,double v0,double v1,double h,double&
     temp=1.0+tau;
     d=fmax(0.0,tau*tau*((3.0+2.0*tau)*d0+temp*h*v0)+temp*temp*((1.0-2.0*tau)*d1+tau*h*v1));
 }
-__global__ void bounding_boxes(int n,double h,const double* ox,const double* ov,
-    const double* xx,const double* vv,const double* limits,double* bb) {
+// MCE_BOX plus expansion: MCE_STAT pads every body by 1.2*rce, while
+// MCE_SNIF pads only Big bodies by rcrit.
+__global__ void bounding_boxes(int n,int nbig,double big_pad,double small_pad,double h,
+    const double* ox,const double* ov,const double* xx,const double* vv,const double* limits,double* bb) {
     int j=blockIdx.x*blockDim.x+threadIdx.x;
     if(j>=n) return;
+    double pad=(j<nbig?big_pad:small_pad)*limits[j];
     for(int k=0;k<2;k++) {
         int z=k*n+j; double lo=fmin(ox[z],xx[z]),hi=fmax(ox[z],xx[z]);
-        if(ov[z]*vv[z]<0) {
+        if((ov[z]<0&&vv[z]>0)||(ov[z]>0&&vv[z]<0)) {
             double tmp=(ov[z]*xx[z]-vv[z]*ox[z]-.5*h*ov[z]*vv[z])/(ov[z]-vv[z]);
             lo=fmin(lo,tmp); hi=fmax(hi,tmp);
         }
-        bb[2*k*n+j]=lo-1.2*limits[j]; bb[(2*k+1)*n+j]=hi+1.2*limits[j];
+        bb[2*k*n+j]=lo-pad; bb[(2*k+1)*n+j]=hi+pad;
     }
 }
 __global__ void pair_events(Config c,double time,double h,const double* ox,const double* ov,
@@ -440,7 +454,7 @@ extern "C" int mercury_cuda_events(double time,double h,double radius,const Merc
         const double* central_v=v;
         if(algorithm==10) { physical_velocity(v,sym+15*cfg.n); central_v=sym+15*cfg.n; }
         const double *px=mvs?sym:oldx,*pv=mvs?sym+3*cfg.n:oldv,*fv=mvs?sym+6*cfg.n:v;
-        bounding_boxes<<<blocks(cfg.n),THREADS>>>(cfg.n,h,px,pv,x,fv,rce,boxes);
+        if(algorithm!=10) bounding_boxes<<<blocks(cfg.n),THREADS>>>(cfg.n,cfg.nbig,1.2,1.2,h,px,pv,x,fv,rce,boxes);
         for(;;) {
             check(cudaMemset(event_count,0,sizeof(int)));
             if(algorithm!=10) pair_events<<<blocks(cfg.n),THREADS>>>(cfg,time,h,px,pv,x,fv,mass,rce,rphys,boxes,event_capacity,event_count,device_events);
@@ -495,8 +509,8 @@ extern "C" int mercury_cuda_hybrid_begin(double h,const double* crit,int flag,in
         copy_vector(oldx,x); physical_velocity(v,oldv);
         kick<<<blocks(3*n),THREADS>>>(n,h*.5,sym+9*n,v);
         solar_drift(h*.5); copy_vector(sym,x); copy_vector(sym+3*n,v);
-        kepler_drift<<<blocks(n),THREADS>>>(cfg,h,mass,x,v,wx,wv,0,fault);
-        bounding_boxes<<<blocks(n),THREADS>>>(n,h,sym,sym+3*n,x,v,critical,boxes);
+        kepler_drift<<<blocks(n),THREADS>>>(cfg,h,mass,x,v,wx,wv,0);
+        bounding_boxes<<<blocks(n),THREADS>>>(n,cfg.nbig,1.0,0.0,h,sym,sym+3*n,x,v,critical,boxes);
         for(;;) {
             check(cudaMemset(event_count,0,sizeof(int)));
             sniff<<<blocks(n),THREADS>>>(cfg,h,sym,sym+3*n,x,v,critical,boxes,event_capacity,event_count,device_events);
@@ -520,7 +534,7 @@ extern "C" int mercury_cuda_hybrid_begin(double h,const double* crit,int flag,in
             for(int a=0;a<ns;a++) for(int k=0;k<3;k++) { xx[3*selected[a]+k]=packed[6*a+k]; vv[3*selected[a]+k]=packed[6*a+3+k]; }
         }
         int bad; check(cudaMemcpy(&bad,fault,sizeof(int),cudaMemcpyDeviceToHost));
-        if(bad) throw std::runtime_error("Hybrid Kepler drift or force failed");
+        if(bad) throw std::runtime_error("Hybrid force failed");
         *forces=nforces-before; return 0;
     } catch(const std::exception& e) { return error(e); }
 }
@@ -550,7 +564,10 @@ extern "C" int mercury_cuda_encounter_enter(int n,int nb,const double* m,const d
         if(mercury_cuda_upload(n,nb,0,0,m,xx,vv,zero.data(),jc,limits,radii)) throw std::runtime_error("Encounter upload failed");
         encounter_mode=true;
         check(cudaMemcpy(critical,crit,n*sizeof(double),cudaMemcpyHostToDevice));
-        if(np>pair_capacity) { allocate(pair_i,np); allocate(pair_j,np); pair_capacity=np; }
+        if(np>pair_capacity) {
+            if(pair_capacity) { release(pair_i); release(pair_j); }
+            pair_capacity=0; allocate(pair_i,np); allocate(pair_j,np); pair_capacity=np;
+        }
         std::vector<int> ids(np);
         for(int k=0;k<np;k++) ids[k]=pi[k]-1;
         check(cudaMemcpy(pair_i,ids.data(),np*sizeof(int),cudaMemcpyHostToDevice));

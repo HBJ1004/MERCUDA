@@ -3869,11 +3869,13 @@ c
 c Save old coordinates and integrate
         call mco_iden (time,jcen,nbs,0,h0,mbs,xbs,vbs,x0,v0,ngf,ngflag,
      %    opt)
+c BS2 encounter forces (MFO_HKCE) are autonomous. Both backends check step
+c progress against the encounter clock, not the much larger absolute epoch.
         if (gpu_enabled) then
-          call gpu_advance (time,hlocal,hdid,tol,dtflag)
+          call gpu_advance (tlocal,hlocal,hdid,tol,dtflag)
           call gpu_pull (xbs,vbs)
         else
-        call mdt_bs2 (time,hlocal,hdid,tol,jcen,nbs,nbsbig,mbs,xbs,vbs,
+        call mdt_bs2 (tlocal,hlocal,hdid,tol,jcen,nbs,nbsbig,mbs,xbs,vbs,
      %    sbs,rphybs,rcritbs,ngfbs,statbs,dtflag,ngflag,opt,nce,
      %    ibs,jbs,force)
         endif

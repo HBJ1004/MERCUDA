@@ -1,6 +1,8 @@
 """Scheduling, restart, and allocation regression cases."""
 import re
 import shutil
+import os
+import subprocess
 import unittest
 import test_mercury as core
 from cases import ROOT, body, prepare, run, dump
@@ -11,6 +13,31 @@ class Edges(unittest.TestCase):
     tearDown=core.Integration.tearDown
     case=core.Integration.case
     assertState=core.Integration.assertState
+
+    def test_auto_upload_failure_logs_cpu_fallback(self):
+        # Fault injection at the existing C ABI: a device is available, but its
+        # first upload fails. The production Fortran driver must log and use CPU.
+        build=ROOT/os.environ.get('MERCURY_TEST_BUILD','build')
+        source=(ROOT/'mercury_cuda_stub.cpp').read_text()
+        source=source.replace('mercury_cuda_available() { return 0;',
+                              'mercury_cuda_available() { return 1;')
+        source=source.replace('mercury_cuda_configure(int) { return 1;',
+                              'mercury_cuda_configure(int) { return 0;')
+        stub=self.base/'fault.cpp';stub.write_text(source)
+        obj=self.base/'fault.o';exe=self.base/'mercury6'
+        subprocess.run(['g++','-I'+str(ROOT),'-c',str(stub),'-o',str(obj)],check=True,capture_output=True)
+        subprocess.run(['gfortran','-o',str(exe),*[str(build/name) for name in
+                        ['mercury6.o','mercury_support.o','mercury_gpu.o']],str(obj),'-lstdc++'],
+                       check=True,capture_output=True)
+        p=prepare(self.base/'fallback',backend='auto',stop=.01,interval=.01,
+                  small=[body('P'+str(j),a=2+j*.001) for j in range(4096)])
+        result=subprocess.run([str(exe)],cwd=p,text=True,capture_output=True,timeout=60)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        log=(p/'info.out').read_text()
+        backend_lines=[line for line in log.splitlines() if 'Execution backend:' in line]
+        self.assertIn('CUDA',backend_lines[0])
+        self.assertIn('CPU (CUDA initialization failed; auto fallback)',backend_lines[-1])
+        self.assertEqual(len(dump(p)),4096)
 
     def test_mixed_epochs_keep_coefficients(self):
         objs=[body('LATE',a2=1e-10,ep=2),body('EARLY',a2=-3e-10,b=.001,ep=-2)]

@@ -139,6 +139,16 @@ class Integration(unittest.TestCase):
             p=prepare(self.base/name,**kw); res=run(p,check=False)
             self.assertNotEqual(res.returncode,0,(name,res.stdout)); self.assertIn(message,(res.stdout+res.stderr))
 
+    def test_pr_rejected_for_symplectic_methods(self):
+        for method in ['MVS','HYBRID']:
+            for backend in ['cpu','cuda']:
+                with self.subTest(method=method,backend=backend):
+                    p=prepare(self.base/(method+backend),algorithm=method,backend=backend,
+                              small=[body(b=.001)],stop=1)
+                    result=run(p,check=False)
+                    self.assertNotEqual(result.returncode,0)
+                    self.assertIn('PN, A2 and PR require BS or RADAU',result.stdout+result.stderr)
+
     def test_restart_and_postprocessors(self):
         p=self.case('restart',pn=True,small=[body(a2=1e-12)],stop=10,interval=1)
         text=(p/'param.dmp').read_text(); text=re.sub(r'(stop time.*?=)\s*[^\n]+',r'\g<1> 20',text,flags=re.I); (p/'param.dmp').write_text(text)

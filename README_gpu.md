@@ -69,6 +69,14 @@ substituting a different integrator. Future optimization should focus on measure
 launch overhead, encounter transfers, and large massive-body reductions; changes
 to precision or the integration method need separate accuracy studies.
 
+Indirect gravity, momentum and oblateness reaction use parallel block reductions
+over the massive sources. Jacobi transforms and the MVS prefix recurrence remain
+serial over the big bodies; systems with many big bodies can still be limited by
+these kernels. Massless ensembles do not increase those serial loops.
+HYBRID encounter BS2 checks timestep progress against its local encounter clock,
+so a large Julian epoch does not reject otherwise representable encounter steps.
+If automatic CUDA initialization fails, `info.out` records the CPU fallback.
+
 The GPU retains the BS midpoint stages, extrapolation table, error reductions,
 and encounter screening between accepted steps. The CPU retains scheduling,
 files, synchronization of different input epochs, and collision/ejection

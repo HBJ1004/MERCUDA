@@ -12,7 +12,8 @@ class GPUAlgorithms(unittest.TestCase):
     def setUpClass(cls):
         if load_gpu() is None: raise unittest.SkipTest('CUDA unavailable')
 
-    def compare(self, algorithm, *, massive=False, pn=False, stop=32., interval=8., params=None, big=None, count=33):
+    def compare(self, algorithm, *, massive=False, pn=False, stop=32., interval=8., params=None, big=None, count=33,
+                jcen=(0.,0.,0.)):
         with tempfile.TemporaryDirectory() as tmp:
             states=[]
             for backend in ['cpu','cuda']:
@@ -21,7 +22,7 @@ class GPUAlgorithms(unittest.TestCase):
                 p=prepare(Path(tmp)/backend,algorithm=algorithm,backend=backend,
                           big=big if big is not None else [body('E',mass=3e-6,a=1,e=.016),
                               body('J',mass=.001,a=5.2,e=.04),body('S',mass=.0003,a=9.5,e=.05)],small=small,
-                          stop=stop,interval=interval,step=.5,pn=pn)
+                          stop=stop,interval=interval,step=.5,pn=pn,jcen=jcen)
                 run(p)
                 states.append({**dump(p,'big.dmp'),**dump(p)})
             self.assertEqual(states[0].keys(),states[1].keys())
@@ -45,6 +46,24 @@ class GPUAlgorithms(unittest.TestCase):
         for n in [0,1,257]: self.compare('MVS',big=[],count=n)
         self.compare('TEST',stop=32)
 
+    def test_hybrid_encounters_at_large_epoch(self):
+        # Encounter BS2 substeps are far below one ulp of this epoch (0.125 d),
+        # so both backends must check progress on the local encounter clock.
+        big=[body('A',mass=1e-4,a=1),body('B',mass=1e-4,a=1.005,phase=.005)]
+        epoch=1e15
+        with tempfile.TemporaryDirectory() as tmp:
+            states=[]
+            for epoch,backend in [(0.,'cpu'),(epoch,'cpu'),(epoch,'cuda')]:
+                p=prepare(Path(tmp)/str(len(states)),algorithm='HYBRID',backend=backend,
+                          big=big,small=[],epoch=epoch,start=epoch,stop=epoch+8,
+                          interval=8,step=.5)
+                run(p);states.append(dump(p,'big.dmp'))
+            for state in states[1:]:
+                self.assertEqual(states[0].keys(),state.keys())
+                for name in state:
+                    for key in ['x','v']:
+                        self.assertLess(max(abs(a-b) for a,b in zip(states[0][name][key],state[name][key])),1e-10)
+
     def test_kepler_regimes(self):
         for speed in [.7,1.,1.2]:
             with tempfile.TemporaryDirectory() as tmp:
@@ -56,6 +75,16 @@ class GPUAlgorithms(unittest.TestCase):
                     run(p); states.append(dump(p)['K'])
                 for k in ['x','v']:
                     self.assertLess(max(abs(a-b) for a,b in zip(states[0][k],states[1][k])),1e-10)
+
+    def test_oblateness_reaction(self):
+        # A massive inner planet makes the central-body J2/J4 reaction visible
+        # far above the parity tolerance in both MVS and HYBRID.
+        big=[body('P',mass=1e-3,a=.3,e=.02),body('J',mass=1e-3,a=5.2,e=.04)]
+        jcen=(.1,-1e-3,0.)
+        self.compare('MVS',big=big,stop=64,interval=7.3,jcen=jcen)
+        self.compare('HYBRID',big=big,massive=True,stop=64,interval=7.3,jcen=jcen)
+        self.compare('HYBRID',big=[body('A',mass=1e-5,a=1),
+                                  body('B',mass=1e-5,a=1.02,phase=.02)],count=3,stop=8,jcen=jcen)
 
     def test_periodic_updates_preserve_history(self):
         # Frequent Hill-radius updates must not reinitialize the RA15 predictor.
