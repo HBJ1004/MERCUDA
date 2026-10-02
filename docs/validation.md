@@ -102,16 +102,26 @@ must improve an error by at least a factor of two unless it is already within
 ten times the reference/roundoff floor. These bounds are fixed in the catalog;
 they are test acceptance criteria, not a universal accuracy guarantee.
 
-## Validation recorded on 2 October 2026
+## Validation completed on 3 October 2026
 
 The complete CPU campaign passed **12,988 validation cases** at revision
 [`3a6c32d`](https://github.com/HBJ1004/MERCUDA/commit/3a6c32d5ee331fbf6cba4a392fd73d7a67ca4133),
 using optimized and debug builds. `make test` also passed all 52 regression tests.
-The combined CPU/CUDA campaign passed **25,944 cases**, with **zero failures**.
-All test groups ran, but **20 device-sanitizer checks were blocked** by the
-Windows debugger interface. Its overall status remains **incomplete**. The host
-AddressSanitizer/UBSan check passed. The GPU was an NVIDIA RTX 4070, with driver
-591.86 and CUDA toolkit 12.6; GNU Fortran 13.3 was used for all profiles.
+The combined CPU/CUDA campaign passed **25,964 cases**, with **zero failures
+and zero incomplete checks**. All 20 NVIDIA device-sanitizer checks passed for
+BS, BS2, RADAU, MVS and HYBRID, covering both the lifecycle worker and integration
+driver. No memory-access errors, device leaks, uninitialized-memory reads,
+synchronization errors or shared-memory race hazards were detected in these
+fixtures. The host AddressSanitizer/UBSan check of encounter-buffer packing also
+passed. The GPU was an NVIDIA RTX 4070, with driver 591.86 and CUDA toolkit 12.6;
+GNU Fortran 13.3 was used for all profiles.
+
+The device checks were initially blocked by the Windows debugger interface.
+After enabling it, they passed on 3 October at revision
+[`0aa6bc4`](https://github.com/HBJ1004/MERCUDA/commit/0aa6bc47de88c9861cf605b19fbb5a80f23fb1c8).
+The numerical source, fixtures and tools were verified unchanged before adding
+the follow-up results to the combined report. Its provenance preserves the
+original blocked checks and the follow-up campaign.
 
 An environment restart interrupted the combined run. It continued from a
 13,400-case checkpoint after verifying the numerical source, fixtures and tools;
