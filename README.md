@@ -9,8 +9,9 @@ The workflow stays familiar: `make`, settings in `.in` files, and the same
 CUDA toolkit; select `execution backend = cuda` in `param.in` to enable it.
 CPU remains the default.
 
-- **[MERCUDA guide](README_MERCUDA.md)** — build, step-by-step use, CPU differences, force models and compatibility.
+- **[MERCUDA guide](README_MERCUDA.md)** — a first run, GPU setup, force settings and restarts.
 - **[Original MERCURY6 README](README_MERCURY6.md)** and **[manual](mercury6.man)** — standard inputs, outputs, postprocessing and restarts.
+- **[Technical notes](docs/technical_notes.md)** — equations, integration changes and CUDA implementation.
 - **[Benchmarks](docs/benchmarks.md)** — accuracy, runtime, particle-count and integration-time scaling.
 - **[References](docs/references.md)** — integrator and force-model literature.
 
