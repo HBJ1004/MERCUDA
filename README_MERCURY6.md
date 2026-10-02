@@ -1,14 +1,13 @@
-**Fortran NBody integrator**
+# MERCURY6 manual (adapted for MERCUDA)
 
-_This software was initially created by John E. Chambers. It is the NBody integrator based on Bulirsh-Stoer, Everhart and other methods. It can "out of box" integrate every system like Solar System, 3 body problem and so on. The configuration is really simple._
+This is the MERCURY6 manual by John E. Chambers, including I. Dovgalev's 2016
+note, adapted for MERCUDA. Source-file names, build steps and other obsolete
+instructions (such as the statement that relativity is ignored) were updated,
+and the original speed comparisons between integrators were removed. The
+unmodified text is in [mercury6.man](mercury6.man).
 
-*How to use*
-
-Build and run instructions for this version are in [README_MERCUDA.md](README_MERCUDA.md).
-The inherited MERCURY6 manual is retained below; obsolete instructions have been
-removed or corrected. 
-
-**Original message by John E. Chambers**
+For building, GPU use and the forces MERCUDA adds, see the
+[MERCUDA guide](README_MERCUDA.md).
 
 -----------------------------------------------------------------------
 -----------------------------------------------------------------------
@@ -317,8 +316,14 @@ in older versions). Please take into account.
                       force parameter for this body. Realistically this should be
                       zero for Big bodies (the default is 0).
 
+             a2 = X   where X is a real number, to indicate the A2 non-gravitational
+                      force parameter for this body (the default is 0).
+
              a3 = X   where X is a real number, to indicate the A3 non-gravitational
                       force parameter for this body (the default is 0).
+
+             MERCUDA adds b = X (radiation pressure/PR beta) and yar = X
+             (Yarkovsky); see README_MERCUDA.md.
 
              E.g. the line might look something like this:
                MARS   m=3.22715144505386530E-07 d= 3.94
@@ -357,7 +362,7 @@ in older versions). Please take into account.
                       to the same epoch prior to the main integration.
 
              E.g. the line might look something like this:
-               HALLEY   Ep=2446480.5  a1=0.04d-8
+               HALLEY   Ep=2446480.5  a1=0.04d-8 a2=0.0155d-8
 
              Note that if any of the Small bodies have different epochs than
              the Large bodies, the Small bodies must all have zero mass.

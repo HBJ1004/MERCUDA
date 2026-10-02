@@ -1,11 +1,12 @@
 # Using MERCUDA
 
-MERCUDA is based on John E. Chambers' MERCURY6. It adds GPU support, relativity,
-Poynting–Robertson (PR) drag and Yarkovsky drift, while keeping the usual input
+MERCUDA is based on John E. Chambers' MERCURY6. It adds GPU support, solar 1PN
+relativity (PN), radiation pressure and Poynting–Robertson (PR) drag, and
+Yarkovsky drift, while keeping the usual input
 files and programs: `mercury6`, `element6` and `close6`.
 
 This is a user guide. For the standard file formats and settings, read the
-[original MERCURY6 README](README_MERCURY6.md) or [manual](mercury6.man).
+[MERCURY6 manual](README_MERCURY6.md).
 For equations, numerical changes and implementation details, read the
 [technical notes](docs/technical_notes.md).
 
@@ -67,7 +68,7 @@ use a fresh folder for this example.
 | `message.in` | Messages used by the programs; leave this file as supplied. |
 
 Keep the supplied `big.in` and `small.in` for this example. For your own system,
-follow [section 3 of the original manual](mercury6.man).
+follow section 3 of the [MERCURY6 manual](README_MERCURY6.md).
 
 ### 3. Set a short integration
 
@@ -109,8 +110,8 @@ Then run:
 
 This produces `.aei` files for the selected bodies. Open one in a text editor to
 see its orbital elements. To examine close encounters, run `./close6`; encounters
-recorded during the run are written to `.clo` files. See
-[manual sections 4–5](mercury6.man) for selecting bodies and output columns.
+recorded during the run are written to `.clo` files. See sections 4–5 of the
+[MERCURY6 manual](README_MERCURY6.md) for selecting bodies and output columns.
 
 ## Using the GPU
 
@@ -154,12 +155,12 @@ All five methods below can run on CPU or GPU.
 | --- | --- |
 | BS | Supports all built-in forces, including velocity-dependent and dissipative terms. |
 | RADAU | Supports all built-in forces, including velocity-dependent and dissipative terms. |
-| BS2 | Use for gravity, including central-body oblateness. PN, PR, Yarkovsky and A1/A2/A3 are not supported. |
+| BS2 | Use for gravity, including central-body oblateness. PN, PR, Yarkovsky and A1/A2/A3 are rejected. |
 | MVS | PN, PR and Yarkovsky are not supported. Small bodies must have zero mass. |
 | HYBRID | PN, PR and Yarkovsky are not supported. |
 
 For the purpose and usual settings of each method, see the
-[original manual](mercury6.man). Custom `mfo_user` forces require CPU. The close-
+[MERCURY6 manual](README_MERCURY6.md). Custom `mfo_user` forces require CPU. The close-
 and wide-binary methods have no working drivers in this distribution.
 [Full support details](docs/technical_notes.md#algorithm-support).
 
@@ -170,7 +171,7 @@ and wide-binary methods have no working drivers in this distribution.
 | Force | How to enable it |
 | --- | --- |
 | Relativity (PN) | Change the existing `include relativity in integration` setting in `param.in` to `yes`. |
-| Radiation pressure / PR | Add `b=<beta>` on the body's name/parameter line. It applies only to bodies with zero mass. Based on Burns et al. (1979), Liou et al. (1995) and Klačka et al. (2012); see the [references](docs/references.md). |
+| Radiation pressure / PR | Add `b=<beta>` on the body's name/parameter line. Beta is dimensionless and defaults to zero. It applies only to bodies with zero mass. |
 | Cometary acceleration | Use `A1`, `A2` and `A3` as in MERCURY6 for radial, transverse and normal acceleration. |
 | Yarkovsky drift | Add `yar=<value>` on the body's name/parameter line in `big.in` or `small.in`. It defaults to zero. |
 
@@ -184,15 +185,16 @@ Keep its following position/elements, velocity and spin lines in the usual forma
 `yar` is measured in AU/day² at 1 AU. Positive `yar` acts along orbital motion;
 negative `yar` acts against it. It applies to both massive and massless bodies.
 Cometary A2 and Yarkovsky `yar` are independent; you can specify both on the same
-parameter line. Beta is dimensionless and defaults to zero.
+parameter line.
 
 These are simplified force models. The [technical notes](docs/technical_notes.md#forces-and-body-input)
 give their equations and limits, and the [references](docs/references.md) identify
-the literature they are based on.
+the literature they are based on (for PR: Burns et al. 1979, Liou et al. 1995 and
+Klačka et al. 2012).
 
 ## Backward runs, restarts and cleanup
 
-For a fresh run, the epoch in `big.in` tells MERCUDA when the supplied states
+For a fresh run, the epoch in `big.in` tells MERCUDA when the input states
 apply. If it is later than the start time in `param.in`, MERCUDA first integrates
 backward to prepare the starting state. Small bodies with their own epochs are
 also synchronized. Recorded output begins at the requested start time.
@@ -219,8 +221,8 @@ Numerical error includes preparation as well as the recorded run.
 MVS and HYBRID write output on their integration timestep grid;
 a smaller output interval does not create intermediate states.
 
-Continue a run using its dump files as described in
-[manual sections 6–7](mercury6.man). Changing ordinary `.in` files does not change
+Continue a run using its dump files as described in sections 6–7 of the
+[MERCURY6 manual](README_MERCURY6.md). Changing ordinary `.in` files does not change
 the saved run's dynamics. You can change `execution backend` in `param.in` to
 switch between CPU and GPU when continuing a MERCUDA run. For old dumps, see the
 [restart compatibility notes](docs/technical_notes.md#backward-integration-and-restarts).
@@ -235,7 +237,7 @@ Save any needed results and restart files before deleting them.
 
 ## More information
 
-- [Original MERCURY6 README](README_MERCURY6.md) and [manual](mercury6.man): standard input formats, settings and output instructions.
+- [MERCURY6 manual](README_MERCURY6.md): standard input formats, settings and output instructions, adapted for this package. The unmodified original is [mercury6.man](mercury6.man); its build instructions do not apply.
 - [Technical notes](docs/technical_notes.md): equations, numerical changes, GPU implementation and tests.
 - [Benchmarks](docs/benchmarks.md): speed and accuracy comparisons.
 - [References](docs/references.md): papers to consult and cite.

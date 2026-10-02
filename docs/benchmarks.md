@@ -7,9 +7,10 @@ That version called the Yarkovsky coefficient `A2`; equivalent inputs now use
 `yar` with cometary `A2=0`. Historical results and labels are retained; the
 figures have not been rerun for this input change.
 
-These measurements compare **identical Newtonian physics**, with PN, PR, A1/A2/A3
-and oblateness disabled. The example below uses eight planets and 100,000
-massless particles for 365 days; timings include startup and final output.
+These measurements compare **identical Newtonian physics**, with solar 1PN
+relativity (PN), radiation pressure/PR drag, A1/A2/A3 and oblateness disabled.
+The example below uses eight planets and 100,000 massless particles for 365 days;
+timings include startup and final output.
 
 ![Runtime and endpoint accuracy](images/speed_and_accuracy.png)
 
@@ -25,8 +26,7 @@ Errors are maximum absolute Cartesian endpoint differences against a converged
 REBOUND IAS15 reference, over eight planets and up to 64 sampled particles.
 All-particle CPU/CUDA comparisons were also checked. The plotted cases show
 similar accuracy, not a guarantee for every orbit or encounter. BS2's corrected
-error norm can change timesteps even at equal requested tolerance. Earlier tests
-found CPU MVS regressions in other configurations.
+error norm can change timesteps even at equal requested tolerance.
 
 The speedup over MERCURY6 includes CPU initialization improvements as well as
 CUDA acceleration; the CPU/CUDA column separates the backends more closely.
@@ -64,8 +64,9 @@ and MIO_IN (force equations, PN parsing and combined A2/PR activation).
 IAS15 tolerances 1e-13 and 1e-15 agreed within 2.57e-13 AU across the campaign.
 All 156 configuration aggregates completed, with identical endpoints across
 repeated executions of each configuration; the largest all-body CPU/CUDA
-position difference was 3.79e-11 AU. Selected final figures are included here;
-the local benchmark workspace, scripts and simulation artifacts remain ignored.
+position difference was 3.79e-11 AU. Only the final figures are published;
+benchmark scripts, reference builds and simulation files are not part of the
+package.
 
 ## Particle count and duration
 
@@ -88,10 +89,8 @@ original integration controllers; the IAS15 reference shares the validated
 heliocentric force implementation, so this checks integration accuracy rather
 than providing an independent derivation of the forces.
 
-Selected final figures are published for the documentation. The complete local
-`benchmarks/` workspace remains gitignored; scripts, reference builds, simulation
-files and other nonessential artifacts are not part of the package. Speed depends
-on hardware, algorithm, population, encounters and output cadence. Startup can
-dominate short runs. These stable-orbit measurements do not establish universal
-accuracy equivalence, and earlier testing found CPU MVS regressions in some other
-configurations. Check convergence for your intended problem.
+Speed depends on hardware, algorithm, population, encounters and output cadence.
+Startup can dominate short runs. These stable-orbit measurements do not establish
+universal accuracy equivalence. An earlier, unpublished benchmark campaign found
+MVS accuracy differences in some other configurations. Check convergence for your
+intended problem.
