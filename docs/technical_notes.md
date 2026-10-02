@@ -272,3 +272,8 @@ with Fortran bounds and runtime checks in a separate build directory.
 See the [benchmark report](benchmarks.md) for runtime and accuracy measurements,
 and the [reference list](references.md) for the integrator and force-model
 literature. Source comments cite the equations at their implementations.
+
+## Validation
+
+See [Testing MERCUDA](validation.md) for the independent reference models,
+acceptance bounds, configuration coverage and commands for reproducing checks.

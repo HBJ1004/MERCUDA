@@ -241,3 +241,9 @@ Save any needed results and restart files before deleting them.
 - [Technical notes](docs/technical_notes.md): equations, numerical changes, GPU implementation and tests.
 - [Benchmarks](docs/benchmarks.md): speed and accuracy comparisons.
 - [References](docs/references.md): papers to consult and cite.
+
+## Testing
+
+Run `make test` for regression checks or `make test-debug` for bounds checks.
+See [Testing MERCUDA](docs/validation.md) for the full CPU/GPU validation campaign,
+independent accuracy references and the limits of testing.

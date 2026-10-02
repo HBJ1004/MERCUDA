@@ -15,21 +15,24 @@ class Edges(unittest.TestCase):
     case=core.Integration.case
     assertState=core.Integration.assertState
 
-    def test_auto_upload_failure_logs_cpu_fallback(self):
-        # Fault injection at the existing C ABI: a device is available, but its
-        # first upload fails. The production Fortran driver must log and use CPU.
-        build=ROOT/os.environ.get('MERCURY_TEST_BUILD','build')
+    def fault_executable(self,label,**returns):
+        # Replace only return values at the production C ABI; no test hooks.
+        build=Path(os.environ.get('MERCURY_TEST_BUILD',str(ROOT/'build')))
         source=(ROOT/'mercury_cuda_stub.cpp').read_text()
-        source=source.replace('mercury_cuda_available() { return 0;',
-                              'mercury_cuda_available() { return 1;')
-        source=source.replace('mercury_cuda_configure(int) { return 1;',
-                              'mercury_cuda_configure(int) { return 0;')
-        stub=self.base/'fault.cpp';stub.write_text(source)
-        obj=self.base/'fault.o';exe=self.base/'mercury6'
+        for name,value in returns.items():
+            pattern=r'(int mercury_cuda_'+name+r'\([^{}]*\)\s*\{\s*return )\d+;'
+            source,count=re.subn(pattern,lambda m:m[1]+str(value)+';',source,flags=re.S)
+            self.assertEqual(count,1)
+        stub=self.base/(label+'.cpp'); stub.write_text(source)
+        obj=self.base/(label+'.o'); exe=self.base/label
         subprocess.run(['g++','-I'+str(ROOT),'-c',str(stub),'-o',str(obj)],check=True,capture_output=True)
         subprocess.run(['gfortran','-o',str(exe),*[str(build/name) for name in
                         ['mercury6.o','mercury_support.o','mercury_gpu.o']],str(obj),'-lstdc++'],
                        check=True,capture_output=True)
+        return exe
+
+    def test_auto_upload_failure_logs_cpu_fallback(self):
+        exe=self.fault_executable('upload-fault',available=1,configure=0)
         p=prepare(self.base/'fallback',backend='auto',stop=.01,interval=.01,
                   small=[body('P'+str(j),a=2+j*.001) for j in range(4096)])
         result=subprocess.run([str(exe)],cwd=p,text=True,capture_output=True,timeout=60)
@@ -41,15 +44,7 @@ class Edges(unittest.TestCase):
         self.assertEqual(len(dump(p)),4096)
 
     def test_auto_configure_failure_falls_back(self):
-        build=Path(os.environ.get('MERCURY_TEST_BUILD',str(ROOT/'build')))
-        source=(ROOT/'mercury_cuda_stub.cpp').read_text().replace(
-            'mercury_cuda_available() { return 0;', 'mercury_cuda_available() { return 1;')
-        stub=self.base/'configure-fault.cpp'; stub.write_text(source)
-        obj=self.base/'configure-fault.o'; exe=self.base/'configure-fault'
-        subprocess.run(['g++','-I'+str(ROOT),'-c',str(stub),'-o',str(obj)],check=True,capture_output=True)
-        subprocess.run(['gfortran','-o',str(exe),*[str(build/name) for name in
-                        ['mercury6.o','mercury_support.o','mercury_gpu.o']],str(obj),'-lstdc++'],
-                       check=True,capture_output=True)
+        exe=self.fault_executable('configure-fault',available=1)
         for backend in ('auto','cuda'):
             p=prepare(self.base/('configure-'+backend),backend=backend,stop=.01,interval=.01,
                       small=[body('P'+str(j),a=2+j*.001) for j in range(4096)])
@@ -60,6 +55,16 @@ class Edges(unittest.TestCase):
                 self.assertEqual(result.returncode,0,result.stderr)
                 self.assertIn('CPU', (p/'info.out').read_text())
                 self.assertEqual(len(dump(p)),4096)
+
+    def test_device_step_failure_never_silently_falls_back(self):
+        exe=self.fault_executable('step-fault',available=1,configure=0,upload=0)
+        for backend in ('auto','cuda'):
+            p=prepare(self.base/('step-'+backend),backend=backend,stop=.01,interval=.01,
+                      small=[body('P'+str(j),a=2+j*.001) for j in range(4096)])
+            result=subprocess.run([str(exe)],cwd=p,text=True,capture_output=True,timeout=60)
+            self.assertGreater(result.returncode,0)
+            self.assertIn('CUDA integration step failed',result.stderr)
+            self.assertNotIn('fallback',(p/'info.out').read_text())
 
     def test_mixed_epochs_keep_coefficients(self):
         objs=[body('LATE',a2=-2e-11,yar=1e-10,ep=2),body('EARLY',a2=4e-11,yar=-3e-10,b=.001,ep=-2)]

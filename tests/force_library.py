@@ -31,13 +31,21 @@ def load_gpu():
     if os.environ.get('MERCURY_TEST_CUDA')=='0': return None
     obj=Path(os.environ.get('MERCURY_TEST_BUILD',str(ROOT/'build')))/'mercury_cuda.o'
     if not obj.exists(): return None
+    so=obj.parent/'tests/cuda.so'
+    if os.environ.get('MERCURY_TEST_GPU_LIBRARY_READY')=='1':
+        # Sanitizers must instrument the CUDA worker, not spawned make/link tools.
+        if not so.is_file(): raise RuntimeError('Prepared CUDA test library is missing')
+        output=None
+    else:
+        output=True
     # Link the same production object; locate the toolkit used by the Makefile.
     env=os.environ.copy()
     for key in ['MAKEFLAGS','MFLAGS','MAKELEVEL']: env.pop(key,None)
-    output=subprocess.check_output(['make','--no-print-directory','-s','--eval=print-cuda: ; @echo $(CUDA_LIB)','print-cuda'],cwd=ROOT,text=True,env=env).strip()
-    if not output: return None
-    so=obj.parent/'tests/cuda.so'; so.parent.mkdir(exist_ok=True)
-    subprocess.run(['g++','-shared',str(obj),output,'-ldl','-lrt','-pthread','-o',str(so)],check=True,capture_output=True)
+    if output:
+        output=subprocess.check_output(['make','--no-print-directory','-s','--eval=print-cuda: ; @echo $(CUDA_LIB)','print-cuda'],cwd=ROOT,text=True,env=env).strip()
+        if not output: return None
+        so.parent.mkdir(exist_ok=True)
+        subprocess.run(['g++','-shared',str(obj),output,'-ldl','-lrt','-pthread','-o',str(so)],check=True,capture_output=True)
     lib=C.CDLL(str(so))
     if not lib.mercury_cuda_available(): return None
     lib.mercury_cuda_upload.argtypes=[I,I,I,I,P,P,P,P,P,P,P]

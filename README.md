@@ -41,6 +41,7 @@ options. The additional choices are:
 - **[MERCURY6 manual](README_MERCURY6.md)** — standard inputs, outputs, postprocessing and restarts, adapted for this package. The unmodified original is in [mercury6.man](mercury6.man); its build instructions do not apply.
 - **[Technical notes](docs/technical_notes.md)** — equations, integration changes and CUDA implementation.
 - **[Benchmarks](docs/benchmarks.md)** — accuracy, runtime, particle-count and integration-time scaling.
+- **[Validation](docs/validation.md)** — regression tests, independent accuracy checks and coverage limits.
 - **[References](docs/references.md)** — integrator and force-model literature.
 
 ## Performance
