@@ -20,6 +20,26 @@ contains
     error stop 1
   end subroutine
 
+  subroutine read_messages(unit,lengths,messages)
+    integer, intent(in) :: unit
+    integer, intent(out) :: lengths(:)
+    character(*), intent(out) :: messages(:)
+    integer :: index_,length_,ios
+    character(80) :: message
+    logical :: seen(size(lengths))
+    seen=.false.; lengths=0; messages=''
+    do
+      read(unit,'(i3,1x,i2,1x,a80)',iostat=ios) index_,length_,message
+      if(ios<0) exit
+      if(ios/=0) call fail('Invalid message.in record')
+      if(index_<1.or.index_>size(lengths)) call fail('Invalid message.in index')
+      if(length_<0.or.length_>len(messages(1))) call fail('Invalid message.in length')
+      if(seen(index_)) call fail('Duplicate message.in index')
+      seen(index_)=.true.; lengths(index_)=length_; messages(index_)=message
+    end do
+    if(.not.all(seen)) call fail('Incomplete message.in')
+  end subroutine
+
   function lower(text) result(out)
     character(*), intent(in) :: text
     character(len(text)) :: out
@@ -217,8 +237,11 @@ subroutine mercury_capacity(kind)
       read(other,'(a)',iostat=ios) header
       close(other)
       if(ios/=0.or.header(1:3)/=achar(12)//'6a') call fail('Expected Mercury6 output header')
+      if(len_trim(header)<19) call fail('Truncated Mercury6 output header')
       nb=0; ns=0
       do j=1,3
+        if(iachar(header(13+j:13+j))<32.or.iachar(header(16+j:16+j))<32) &
+          call fail('Invalid Mercury6 body-count encoding')
         nb=224*nb+iachar(header(13+j:13+j))-32
         ns=224*ns+iachar(header(16+j:16+j))-32
       end do

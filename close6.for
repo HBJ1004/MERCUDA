@@ -23,6 +23,7 @@ c
       end
 c
       subroutine close_main
+      use mercury_support, only: fail, read_messages
       implicit none
       include 'mercury.inc'
 c
@@ -51,13 +52,11 @@ c Read in output messages
       if (.not.test) then
         write (*,'(/,2a)') ' ERROR: This file is needed to continue: ',
      %    ' message.in'
-        stop
+        call fail ('Missing message.in')
       end if
       open (14, file='message.in', status='old')
-  10  continue
-        read (14,'(i3,1x,i2,1x,a80)',end=20) j,lmem(j),mem(j)
-      goto 10
-  20  close (14)
+      call read_messages (14,lmem,mem)
+      close (14)
 c
 c Open file containing parameters for this programme
       inquire (file='close.in', exist=test)

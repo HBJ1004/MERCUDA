@@ -5529,7 +5529,8 @@ c
       end do
 c
 c If required, output the stored close encounter details
-      if (nstored.ge.100.or.ceflush.eq.0) then
+      if (nstored.ge.100.or.ceflush.eq.0.or.
+     %    (opt(1).eq.1.and.nclo.gt.0)) then
 c texadactyl_20180507.3
 c 10    open (22, file=outfile(2), status='old', access='append',err=10)
         open (22, file=outfile(2), status='old', access='append')
@@ -5954,7 +5955,7 @@ c
 c
       use mercury_support, only: read_extras, backend_override,
      %  force_model_version, register_name, fail, initial_step, lower,
-     %  ieee_is_finite
+     %  ieee_is_finite, read_messages
       implicit none
       include 'mercury.inc'
 c
@@ -6008,9 +6009,8 @@ c Read in output messages
         call fail ('Missing message.in')
       end if
       open (16, file='message.in', status='old')
-  10  read (16,'(i3,1x,i2,1x,a80)',end=20) j,lmem(j),mem(j)
-      goto 10
-  20  close (16)
+      call read_messages (16,lmem,mem)
+      close (16)
 c
 c Read in filenames and check for duplicate filenames
       inquire (file='files.in', exist=test)

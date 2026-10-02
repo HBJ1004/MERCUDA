@@ -125,7 +125,12 @@ contains
     gpu_dirty=.true.; host_current=.true.; current_n=0
     inquire(unit=unit,name=info_file)
     if(gpu_enabled) then
-      if(configure(algor)/=0) call fail('CUDA algorithm initialization failed')
+      if(configure(algor)/=0) then
+        if(backend_request/=2) call fail('CUDA algorithm initialization failed')
+        gpu_enabled=.false.; call gpu_free()
+        call log_fallback(' Execution backend: CPU (CUDA configuration failed; auto fallback)')
+        return
+      endif
       write(unit,'(a,i2)') ' Execution backend: CUDA, algorithm ',algor
     else
       write(unit,'(a)') ' Execution backend: CPU'

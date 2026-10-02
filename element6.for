@@ -27,6 +27,7 @@ c
       end
 c
       subroutine element_main
+      use mercury_support, only: fail, read_messages
       implicit none
       include 'mercury.inc'
 c
@@ -63,13 +64,11 @@ c Read in output messages
       if (.not.test) then
         write (*,'(/,2a)') ' ERROR: This file is needed to continue: ',
      %    ' message.in'
-        stop
+        call fail ('Missing message.in')
       end if
       open (14, file='message.in', status='old')
-  10  continue
-        read (14,'(i3,1x,i2,1x,a80)',end=20) j,lmem(j),mem(j)
-      goto 10
-  20  close (14)
+      call read_messages (14,lmem,mem)
+      close (14)
 c
 c Open file containing parameters for this programme
       inquire (file='element.in', exist=test)
@@ -1285,13 +1284,20 @@ c
 c
 c Input/Output
       integer nbod,nbig
-      real*8 jcen(3),h,m(nbig),xh(3,nbig),vh(3,nbig),x(3,nbig),v(3,nbig)
+      real*8 jcen(3),h,m(nbod),xh(3,nbod),vh(3,nbod),x(3,nbod),v(3,nbod)
 c
 c Local
       integer j
       real*8 mtot, mx, my, mz, mu, mv, mw, temp
 c
 c------------------------------------------------------------------------------c
+      x(:,1) = 0.d0
+      v(:,1) = 0.d0
+      if (nbig.lt.2) then
+        x(:,2:nbod) = xh(:,2:nbod)
+        v(:,2:nbod) = vh(:,2:nbod)
+        return
+      end if
       mtot = m(2)
       x(1,2) = xh(1,2)
       x(2,2) = xh(2,2)

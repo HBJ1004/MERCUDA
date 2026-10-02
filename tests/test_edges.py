@@ -4,6 +4,7 @@ import shutil
 import os
 import subprocess
 import unittest
+from pathlib import Path
 import test_mercury as core
 from cases import ROOT, body, prepare, run, dump
 from force_library import load_gpu
@@ -38,6 +39,27 @@ class Edges(unittest.TestCase):
         self.assertIn('CUDA',backend_lines[0])
         self.assertIn('CPU (CUDA initialization failed; auto fallback)',backend_lines[-1])
         self.assertEqual(len(dump(p)),4096)
+
+    def test_auto_configure_failure_falls_back(self):
+        build=Path(os.environ.get('MERCURY_TEST_BUILD',str(ROOT/'build')))
+        source=(ROOT/'mercury_cuda_stub.cpp').read_text().replace(
+            'mercury_cuda_available() { return 0;', 'mercury_cuda_available() { return 1;')
+        stub=self.base/'configure-fault.cpp'; stub.write_text(source)
+        obj=self.base/'configure-fault.o'; exe=self.base/'configure-fault'
+        subprocess.run(['g++','-I'+str(ROOT),'-c',str(stub),'-o',str(obj)],check=True,capture_output=True)
+        subprocess.run(['gfortran','-o',str(exe),*[str(build/name) for name in
+                        ['mercury6.o','mercury_support.o','mercury_gpu.o']],str(obj),'-lstdc++'],
+                       check=True,capture_output=True)
+        for backend in ('auto','cuda'):
+            p=prepare(self.base/('configure-'+backend),backend=backend,stop=.01,interval=.01,
+                      small=[body('P'+str(j),a=2+j*.001) for j in range(4096)])
+            result=subprocess.run([str(exe)],cwd=p,text=True,capture_output=True,timeout=60)
+            if backend=='cuda':
+                self.assertGreater(result.returncode,0)
+            else:
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertIn('CPU', (p/'info.out').read_text())
+                self.assertEqual(len(dump(p)),4096)
 
     def test_mixed_epochs_keep_coefficients(self):
         objs=[body('LATE',a2=-2e-11,yar=1e-10,ep=2),body('EARLY',a2=4e-11,yar=-3e-10,b=.001,ep=-2)]
