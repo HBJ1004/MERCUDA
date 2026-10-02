@@ -192,6 +192,17 @@ the literature they are based on.
 
 ## Backward runs, restarts and cleanup
 
+For a fresh run, the epoch in `big.in` tells MERCUDA when the supplied states
+apply. If it is later than the start time in `param.in`, MERCUDA first integrates
+backward to prepare the starting state. Small bodies with their own epochs are
+also synchronized. Recorded output begins at the requested start time.
+
+For example, `big.in` epoch **2460000**, start **2459000**, and stop **2458000**
+means backward preparation to 2459000, then a backward run to 2458000. With stop
+**2459500** instead, preparation is still backward, but the recorded run is
+forward. The stop time relative to the start time determines the main run's
+direction; the input epoch alone does not.
+
 For backward integration, set the stop time earlier than the start time.
 With PR or Yarkovsky, reversing velocities is not a substitute for integrating
 backward. **Both effects can be included in backward runs using BS or RADAU:**
@@ -200,6 +211,10 @@ For bound orbits, backward integration retraces the usual PR inward drift outwar
 into the past and reverses the Yarkovsky drift (positive `yar` inward, negative `yar`
 outward). This follows the assumed force model into the past; errors and uncertain
 force values can make long-term reconstruction less reliable.
+
+Enabled forces also act during preparation from the input epochs. Keep the
+physical velocities and force parameters unchanged for that stage too.
+Numerical error includes preparation as well as the recorded run.
 
 MVS and HYBRID write output on their integration timestep grid;
 a smaller output interval does not create intermediate states.
