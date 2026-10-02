@@ -168,7 +168,7 @@ and wide-binary methods have no working drivers in this distribution.
 | Force | How to enable it |
 | --- | --- |
 | Relativity (PN) | Change the existing `include relativity in integration` setting in `param.in` to `yes`. |
-| Radiation pressure / PR | Add `b=<beta>` on the body's name/parameter line. It applies only to bodies with zero mass. The supplied prescription is preserved, based on Burns et al. (1979), Liou et al. (1995) and Klačka et al. (2012); see the [references](docs/references.md). |
+| Radiation pressure / PR | Add `b=<beta>` on the body's name/parameter line. It applies only to bodies with zero mass. Based on Burns et al. (1979), Liou et al. (1995) and Klačka et al. (2012); see the [references](docs/references.md). |
 | Yarkovsky drift | Add `A2=<value>` on the body's name/parameter line in `big.in` or `small.in`. It defaults to zero. |
 
 For example, a massive asteroid's name/parameter line can be:
