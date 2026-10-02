@@ -62,7 +62,7 @@ contains
         call set_backend(value)
       case('force model version')
         read(value,*,iostat=ios) force_model_version
-        if(ios/=0.or.force_model_version/=1) call fail('Unsupported force model version')
+        if(ios/=0.or.(force_model_version/=1.and.force_model_version/=2)) call fail('Unsupported force model version')
       case default
         call fail('Unknown optional setting: '//trim(key))
       end select
@@ -101,7 +101,7 @@ contains
     integer, intent(in) :: unit
     character(4), parameter :: backends(0:2) = ['cpu ','cuda','auto']
     write(unit,'(a)') ' execution backend = '//trim(backends(backend_request))
-    write(unit,'(a)') ' force model version = 1'
+    write(unit,'(a)') ' force model version = 2'
   end subroutine
 
   subroutine register_name(name)

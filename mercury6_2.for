@@ -51,6 +51,7 @@ c  ID     = name of the object (25 characters)
 c  CE     = close encounter status
 c  NGF    = (1-3) cometary non-gravitational (jet) force parameters
 c   "     =  (4)  beta parameter for radiation pressure and P-R drag
+c   "     =  (5)  yar: Yarkovsky transverse coefficient at 1 AU
 c  EPOCH  = epoch of orbit (days)
 c  NBOD  = current number of bodies (INCLUDING the central object)
 c  NBIG  =    "       "    " big bodies (ones that perturb everything else)
@@ -134,7 +135,7 @@ c
       integer j,algor,nbod,nbig,opt(8),stat(NMAX),lmem(NMESS)
       integer opflag,ngflag,ndump,nfun
       real*8 m(NMAX),xh(3,NMAX),vh(3,NMAX),s(3,NMAX),rho(NMAX)
-      real*8 rceh(NMAX),epoch(NMAX),ngf(4,NMAX),rmax,rcen,jcen(3)
+      real*8 rceh(NMAX),epoch(NMAX),ngf(5,NMAX),rmax,rcen,jcen(3)
       real*8 cefac,time,tstart,tstop,dtout,h0,tol,en(3),am(3)
       character*25 id(NMAX)
       character*80 outfile(3), dumpfile(4), mem(NMESS)
@@ -328,7 +329,7 @@ c Input/Output
       integer lmem(NMESS)
       real*8 time,tstart,tstop,dtout,h0,tol,jcen(3),rcen,rmax
       real*8 en(3),am(3),cefac,m(nbod),xh(3,nbod),vh(3,nbod)
-      real*8 s(3,nbod),rho(nbod),rceh(nbod),ngf(4,nbod)
+      real*8 s(3,nbod),rho(nbod),rceh(nbod),ngf(5,nbod)
       character*25 id(nbod)
       character*80 outfile(3),dumpfile(4),mem(NMESS)
 c
@@ -634,7 +635,7 @@ c Input/Output
       integer lmem(NMESS),ndump,nfun
       real*8 time,tstart,tstop,dtout,h0,tol,jcen(3),rcen,rmax
       real*8 en(3),am(3),cefac,m(nbod),xh(3,nbod),vh(3,nbod)
-      real*8 s(3,nbod),rho(nbod),rceh(nbod),ngf(4,nbod)
+      real*8 s(3,nbod),rho(nbod),rceh(nbod),ngf(5,nbod)
       character*25 id(nbod)
       character*80 outfile(3),dumpfile(4),mem(NMESS)
 c
@@ -1054,7 +1055,7 @@ c
 c Input/Output
       integer i0, nbod, nbig, nhit, jhit(CMAX), algor, ngflag
       real*8 time,h,rcen,jcen(3),m(nbod),x0(3,nbod),v0(3,nbod)
-      real*8 x1(3,nbod),v1(3,nbod),thit(CMAX),dhit(CMAX),ngf(4,nbod)
+      real*8 x1(3,nbod),v1(3,nbod),thit(CMAX),dhit(CMAX),ngf(5,nbod)
 c
 c Local
       integer j
@@ -1959,7 +1960,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),x(3,nbod),v(3,nbod),xh(3,nbod)
-      real*8 vh(3,nbod),ngf(4,nbod)
+      real*8 vh(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j
@@ -2001,7 +2002,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),x(3,nbod),v(3,nbod),xh(3,nbod)
-      real*8 vh(3,nbod),ngf(4,nbod)
+      real*8 vh(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j
@@ -2058,7 +2059,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),x(3,nbod),v(3,nbod),xh(3,nbod)
-      real*8 vh(3,nbod),ngf(4,nbod)
+      real*8 vh(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j
@@ -2102,7 +2103,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),x(3,nbod),v(3,nbod),xh(3,nbod)
-      real*8 vh(3,nbod),ngf(4,nbod)
+      real*8 vh(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j,k,iflag,stat(NMAX)
@@ -2341,7 +2342,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),xh(3,nbod),vh(3,nbod),x(3,nbod)
-      real*8 v(3,nbod),ngf(4,nbod)
+      real*8 v(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j
@@ -2414,7 +2415,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),xh(3,nbod),vh(3,nbod),x(3,nbod)
-      real*8 v(3,nbod),ngf(4,nbod)
+      real*8 v(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j,k,iflag,stat(NMAX)
@@ -2543,7 +2544,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),xh(3,nbod),vh(3,nbod),x(3,nbod)
-      real*8 v(3,nbod),ngf(4,nbod)
+      real*8 v(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j
@@ -2606,7 +2607,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbig),xh(3,nbig),vh(3,nbig),x(3,nbig)
-      real*8 v(3,nbig),ngf(4,nbod)
+      real*8 v(3,nbig),ngf(5,nbod)
 c
 c Local
       integer j
@@ -2693,7 +2694,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8)
       real*8 time,jcen(3),h,m(nbod),x(3,nbod),v(3,nbod),xh(3,nbod)
-      real*8 vh(3,nbod),ngf(4,nbod)
+      real*8 vh(3,nbod),ngf(5,nbod)
 c
 c Local
       integer j
@@ -3217,7 +3218,7 @@ c Input/Output
       integer nbod, nbig, opt(8), stat(nbod), dtflag, ngflag
       integer nce, ice(nce), jce(nce)
       real*8 time,h0,hdid,tol,jcen(3),mass(nbod),x0(3,nbod),v0(3,nbod)
-      real*8 s(3,nbod),ngf(4,nbod),rphys(nbod),rcrit(nbod)
+      real*8 s(3,nbod),ngf(5,nbod),rphys(nbod),rcrit(nbod)
       external force
 c
 c Local
@@ -3417,7 +3418,7 @@ c
 c Input/Output
       integer nbod, nbig, opt(8), stat(nbod), dtflag, ngflag
       real*8 time,h0,hdid,tol,jcen(3),mass(nbod),x0(3,nbod),v0(3,nbod)
-      real*8 s(3,nbod),ngf(4,nbod),rphys(nbod),rcrit(nbod)
+      real*8 s(3,nbod),ngf(5,nbod),rphys(nbod),rcrit(nbod)
       integer nce,ice(nce),jce(nce)
       external force
 c
@@ -3607,7 +3608,7 @@ c Input/Output
       integer colflag,lmem(NMESS),nclo,iclo(CMAX),jclo(CMAX)
       real*8 time,tstart,h0,tol,rmax,en(3),am(3),jcen(3),rcen
       real*8 m(nbod),x(3,nbod),v(3,nbod),s(3,nbod),rphys(nbod)
-      real*8 rce(nbod),rcrit(nbod),ngf(4,nbod),tclo(CMAX),dclo(CMAX)
+      real*8 rce(nbod),rcrit(nbod),ngf(5,nbod),tclo(CMAX),dclo(CMAX)
       real*8 ixvclo(6,CMAX),jxvclo(6,CMAX)
       character*80 outfile(3),mem(NMESS)
       character*25 id(nbod)
@@ -3788,7 +3789,7 @@ c Input/Output
       integer jclo(CMAX)
       real*8 time,tstart,h0,hrec,tol,rmax,elost,jcen(3),rcen
       real*8 m(nbod),x(3,nbod),v(3,nbod),s(3,nbod)
-      real*8 rce(nbod),rphy(nbod),rcrit(nbod),ngf(4,nbod)
+      real*8 rce(nbod),rphy(nbod),rcrit(nbod),ngf(5,nbod)
       real*8 tclo(CMAX),dclo(CMAX),ixvclo(6,CMAX),jxvclo(6,CMAX)
       character*80 outfile(3),mem(NMESS)
       character*25 id(nbod)
@@ -3970,7 +3971,7 @@ c Input/Output
       integer colflag,lmem(NMESS),nclo,iclo(CMAX),jclo(CMAX)
       real*8 time,tstart,h0,tol,rmax,en(3),am(3),jcen(3),rcen
       real*8 m(nbod),x(3,nbod),v(3,nbod),s(3,nbod),rphys(nbod)
-      real*8 rce(nbod),rcrit(nbod),ngf(4,nbod),tclo(CMAX),dclo(CMAX)
+      real*8 rce(nbod),rcrit(nbod),ngf(5,nbod),tclo(CMAX),dclo(CMAX)
       real*8 ixvclo(6,CMAX),jxvclo(6,CMAX)
       character*80 outfile(3),mem(NMESS)
       character*25 id(nbod)
@@ -4113,7 +4114,7 @@ c Input/Output
       integer nce,ice(nce),jce(nce)
       real*8 time,t,tdid,tol,jcen(3),mass(nbod)
       real*8 x1(3*nbod),v1(3*nbod),spin(3*nbod)
-      real*8 ngf(4,nbod),rphys(nbod),rcrit(nbod)
+      real*8 ngf(5,nbod),rphys(nbod),rcrit(nbod)
       external force
 c
 c Local
@@ -4481,7 +4482,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,stat(nbod),opt(8),nce,ice(nce),jce(nce)
       real*8 time,jcen(3),m(nbod),x(3,nbod),v(3,nbod),s(3,nbod)
-      real*8 a(3,nbod),ngf(4,nbod),rcrit(nbod)
+      real*8 a(3,nbod),ngf(5,nbod),rcrit(nbod)
 c
 c Local
       integer j
@@ -4515,7 +4516,7 @@ c Include non-gravitational (cometary jet) accelerations if necessary
 c
 c Include radiation pressure/Poynting-Robertson drag if necessary
       if (ngflag.eq.2.or.ngflag.eq.3) then
-        call mfo_pr (nbod,nbig,m,x,v,acor,ngf)
+        call mfo_pr (nbod,nbig,m,x,v,acor,ngf(1:4,:))
         do j = 2, nbod
           a(1,j) = a(1,j) + acor(1,j)
           a(2,j) = a(2,j) + acor(2,j)
@@ -4804,7 +4805,7 @@ c
 c
 c Input/Output
       integer nbod,nbig,stat(nbod),ngflag,opt(8),nce,ice(nce),jce(nce)
-      real*8 time,jcen(3),rcrit(nbod),ngf(4,nbod),m(nbod)
+      real*8 time,jcen(3),rcrit(nbod),ngf(5,nbod),m(nbod)
       real*8 x(3,nbod),v(3,nbod),a(3,nbod),spin(3,nbod)
 c
 c Local
@@ -5051,15 +5052,15 @@ c arrays X, V with the format (x,y,z) and (vx,vy,vz) for each object in
 c succession. The accelerations are stored in the array A (ax,ay,az). The
 c non-gravitational accelerations follow a force law described by Marsden
 c et al. (1973) Astron. J. 211-225, with magnitude determined by the
-c parameters NGF(1,3).
-c A1/A3 reference: Marsden, Sekanina & Yeomans (1973), AJ 78,
+c parameters NGF(1:3).
+c A1/A2/A3 reference: Marsden, Sekanina & Yeomans (1973), AJ 78,
 c 211-225; https://doi.org/10.1086/111402
 c g(r)=0.111262*q^(-2.15)*(1+q^5.093)^(-4.6142), q=r/2.808 AU.
-c A2 reference: Farnocchia et al. (2013), Icarus 224, 1-13,
+c YAR reference: Farnocchia et al. (2013), Icarus 224, 1-13,
 c https://doi.org/10.1016/j.icarus.2013.02.004 (transverse model).
-c Here distance exponent d=2: a_Y=A2*(1 AU/r)^2*t_hat,
+c Here distance exponent d=2: a_Y=yar*(1 AU/r)^2*t_hat,
 c t_hat=unit(v-(rvec.v)/r^2*rvec). Empirical, not thermophysical.
-c NGF(2) is the Yarkovsky transverse A2,
+c NGF(2) is cometary A2; NGF(5) is the separate Yarkovsky coefficient,
 c in AU/day^2 at 1 AU, with an inverse-square distance law.
 c
 c N.B. All coordinates and velocities must be with respect to central body!!!!
@@ -5071,75 +5072,50 @@ c
       use mercury_support, only: fail
       implicit none
       include 'mercury.inc'
+      integer nbod,j
+      real*8 x(3,nbod),v(3,nbod),a(3,nbod),ngf(5,nbod)
+      real*8 r2,r,rv,q,g,tx,ty,tz,nx,ny,nz,tn,nn,f
 c
-c Input/Output
-      integer nbod
-      real*8 x(3,nbod), v(3,nbod), a(3,nbod), ngf(4,nbod)
-c
-c Local
-      integer j
-      real*8 r2,r,rv,q,g,tx,ty,tz,nx,ny,nz,a1,a2,a3,tn
-c
-c------------------------------------------------------------------------------
-c
+c A1/A2/A3 retain the Marsden cometary law and Mercury distance cutoff.
+c YAR is a separate fitted transverse term with no cometary cutoff.
       a = 0.d0
       do j = 2, nbod
-        if (all(ngf(1:3,j).eq.0.d0)) cycle
-        r2 = x(1,j)*x(1,j) + x(2,j)*x(2,j) +x(3,j)*x(3,j)
-c
-c Only calculate accelerations if body is close to the Sun (R < 9.36 AU), 
-c or if the non-gravitational force parameters are exceptionally large.
-        if ((ngf(1,j).ne.0.d0.or.ngf(3,j).ne.0.d0).and.
-     %    (r2.lt.88.d0.or.abs(ngf(1,j)).gt.1d-7
-     %    .or.abs(ngf(2,j)).gt.1d-7.or.abs(ngf(3,j)).gt.1d-7)) then
-          r = sqrt(r2)
-          rv = x(1,j)*v(1,j) + x(2,j)*v(2,j) + x(3,j)*v(3,j)
-c
-c Calculate Q = R / R0, where R0 = 2.808 AU
-          q = r * .3561253561253561d0
-          g = .111262d0 * q**(-2.15d0) * (1.d0+q**5.093d0)**(-4.6142d0)
-c
-c Orbit-normal vector components
-          nx = x(2,j)*v(3,j) - x(3,j)*v(2,j)
-          ny = x(3,j)*v(1,j) - x(1,j)*v(3,j)
-          nz = x(1,j)*v(2,j) - x(2,j)*v(1,j)
-c
-c Multiplication factors
-          a1 = ngf(1,j) * g / r
-          a3 = 0.d0
-          if (ngf(3,j).ne.0.d0) then
-            tn = sqrt(nx*nx + ny*ny + nz*nz)
-            if (tn.eq.0.d0) call fail ('Undefined comet orbit normal')
-            a3 = ngf(3,j) * g / tn
+        if (all(ngf(1:3,j).eq.0.d0).and.ngf(5,j).eq.0.d0) cycle
+        r2 = sum(x(:,j)*x(:,j))
+        r = sqrt(r2)
+        rv = sum(x(:,j)*v(:,j))/r2
+        tx = v(1,j)-rv*x(1,j)
+        ty = v(2,j)-rv*x(2,j)
+        tz = v(3,j)-rv*x(3,j)
+        tn = sqrt(tx*tx+ty*ty+tz*tz)
+        if (any(ngf(1:3,j).ne.0.d0).and.
+     %      (r2.lt.88.d0.or.any(abs(ngf(1:3,j)).gt.1d-7))) then
+          q = r*.3561253561253561d0
+          g = .111262d0*q**(-2.15d0)*(1.d0+q**5.093d0)**(-4.6142d0)
+          a(:,j) = ngf(1,j)*g/r*x(:,j)
+          if (ngf(2,j).ne.0.d0) then
+            if (tn.eq.0.d0) call fail ('Undefined comet transverse direction')
+            f = ngf(2,j)*g/tn
+            a(:,j) = a(:,j)+f*[tx,ty,tz]
           end if
-c
-c X,Y and Z components of non-gravitational acceleration
-          a(1,j) = a1*x(1,j) + a3*nx
-          a(2,j) = a1*x(2,j) + a3*ny
-          a(3,j) = a1*x(3,j) + a3*nz
-        else
-          a(1,j) = 0.d0
-          a(2,j) = 0.d0
-          a(3,j) = 0.d0
+          if (ngf(3,j).ne.0.d0) then
+            nx = x(2,j)*v(3,j)-x(3,j)*v(2,j)
+            ny = x(3,j)*v(1,j)-x(1,j)*v(3,j)
+            nz = x(1,j)*v(2,j)-x(2,j)*v(1,j)
+            nn = sqrt(nx*nx+ny*ny+nz*nz)
+            if (nn.eq.0.d0) call fail ('Undefined comet orbit normal')
+            a(:,j) = a(:,j)+ngf(3,j)*g/nn*[nx,ny,nz]
+          end if
         end if
-        if (ngf(2,j).ne.0.d0) then
-          rv = sum(x(:,j)*v(:,j)) / r2
-          tx = v(1,j) - rv*x(1,j)
-          ty = v(2,j) - rv*x(2,j)
-          tz = v(3,j) - rv*x(3,j)
-          tn = sqrt(tx*tx + ty*ty + tz*tz)
-          if (tn.eq.0.d0) call fail ('Undefined A2 transverse direction')
-          a2 = ngf(2,j) / (r2*tn)
-          a(1,j) = a(1,j) + a2*tx
-          a(2,j) = a(2,j) + a2*ty
-          a(3,j) = a(3,j) + a2*tz
+        if (ngf(5,j).ne.0.d0) then
+          if (tn.eq.0.d0) call fail ('Undefined yar transverse direction')
+          f = ngf(5,j)/(r2*tn)
+          a(:,j) = a(:,j)+f*[tx,ty,tz]
         end if
       end do
-c
-c------------------------------------------------------------------------------
-c
       return
       end
+
 c
 c%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c
@@ -5624,7 +5600,7 @@ c Input/Output
       integer lmem(NMESS)
       real*8 time,tstart,tstop,dtout,h0,tol,rmax,en(3),am(3)
       real*8 jcen(3),rcen,cefac,m(nbod),x(3,nbod),v(3,nbod)
-      real*8 s(3,nbod),rho(nbod),rceh(nbod),ngf(4,nbod),epoch(nbod)
+      real*8 s(3,nbod),rho(nbod),rceh(nbod),ngf(5,nbod),epoch(nbod)
       character*80 dumpfile(4),mem(NMESS)
       character*25 id(nbod)
 c
@@ -5697,6 +5673,11 @@ c For each body...
             if (ngf(4,j).ne.0d0) then
               write (c(len1+1:len1+27),'(a3,es24.16)') ' b=',ngf(4,j)
               len1 = len1 + 27
+            end if
+            if (ngf(5,j).ne.0d0) then
+              write (c(len1+1:len1+29),'(a5,es24.16)')
+     %          ' yar=',ngf(5,j)
+              len1 = len1 + 29
             end if
             write (31,'(a)') c(1:len1)
             if (algor.eq.11) then
@@ -5966,7 +5947,7 @@ c
      %  epoch,ngf,opt,opflag,ngflag,outfile,dumpfile,lmem,mem)
 c
       use mercury_support, only: read_extras, backend_override,
-     %  force_model_version, register_name, fail, initial_step,
+     %  force_model_version, register_name, fail, initial_step, lower,
      %  ieee_is_finite
       implicit none
       include 'mercury.inc'
@@ -5976,7 +5957,7 @@ c Input/Output
       integer lmem(NMESS),ndump,nfun
       real*8 time,tstart,tstop,dtout,h0,tol,rmax,rcen,jcen(3)
       real*8 en(3),am(3),m(NMAX),x(3,NMAX),v(3,NMAX),s(3,NMAX)
-      real*8 rho(NMAX),rceh(NMAX),epoch(NMAX),ngf(4,NMAX),cefac
+      real*8 rho(NMAX),rceh(NMAX),epoch(NMAX),ngf(5,NMAX),cefac
       character*80 outfile(3),dumpfile(4), mem(NMESS)
       character*25 id(NMAX)
 c
@@ -6278,7 +6259,7 @@ c Default values of mass, close-encounter limit, density etc.
         rceh(nbod) = 1.d0
         rho(nbod) = rhocgs
         epoch(nbod) = time
-        do k = 1, 4
+        do k = 1, 5
           ngf(k,nbod) = 0.d0
         end do
 c
@@ -6303,6 +6284,8 @@ c Read values of mass, close-encounter limit, density etc.
             ngf (2,nbod) = temp
           else if (c80(1:2).eq.'a3'.or.c80(1:2).eq.'A3') then
             ngf (3,nbod) = temp
+          else if (lower(c80(1:3)).eq.'yar') then
+            ngf (5,nbod) = temp
           else if (c80(1:1).eq.'b'.or.c80(1:1).eq.'B') then
             ngf (4,nbod) = temp
           else
@@ -6354,10 +6337,19 @@ c
  140    close (11)
       end do
 c
+c Version 1 dumps stored Yarkovsky in A2; migrate before force selection.
+      if (oldflag.and.force_model_version.eq.1) then
+        if (any(ngf(5,2:nbod).ne.0.d0))
+     %    call fail ('Force model 1 restart cannot contain yar')
+        ngf(5,2:nbod) = ngf(2,2:nbod)
+        ngf(2,2:nbod) = 0.d0
+        write (23,'(a)') ' Migrated force model 1: Yarkovsky A2 to yar'
+      end if
+c
 c Set non-gravitational-forces flag, NGFLAG
       ngflag = 0
       do j = 2, nbod
-        if (ngf(1,j).ne.0.or.ngf(2,j).ne.0.or.ngf(3,j).ne.0) then
+        if (any(ngf(1:3,j).ne.0.d0).or.ngf(5,j).ne.0.d0) then
           if (ngflag.eq.0) ngflag = 1
           if (ngflag.eq.2) ngflag = 3
         end if
@@ -6372,18 +6364,18 @@ c
 c  IF  CONTINUING  AN  OLD  INTEGRATION
 c
       if (oldflag.and.force_model_version.eq.0) then
-        if (any(ngf(2,2:nbod).ne.0.d0).or.opt(7).eq.1)
-     %    call fail ('Legacy restart uses an incompatible A2/PN model')
+        if (opt(7).eq.1)
+     %    call fail ('Legacy restart uses an incompatible PN model')
       end if
       if (algor.ne.2.and.algor.ne.4) then
-        if (opt(7).eq.1.or.any(ngf(2,2:nbod).ne.0.d0)
+        if (opt(7).eq.1.or.any(ngf(5,2:nbod).ne.0.d0)
      %    .or.any(ngf(4,2:nbod).ne.0.d0))
-     %    call fail ('PN, A2 and PR require BS or RADAU')
+     %    call fail ('PN, yar and PR require BS or RADAU')
         if (algor.eq.3.and.opt(8).eq.1)
      %    call fail ('BS2 cannot use an unspecified user force')
       end if
       write (23,'(a)')
-     %  ' Force model 1: solar 1PN; Yarkovsky A2; original PR'
+     %  ' Force model 2: solar 1PN; cometary A2; Yarkovsky yar; original PR'
       if (opt(7).eq.1) write (23,'(a)') ' Solar 1PN enabled'
       if (oldflag) then
         if (opt(3).eq.1) then
@@ -7142,7 +7134,7 @@ c
 c Input/Output
       integer nbod, nbig, nelim, stat(nbod), lmem(NMESS)
       real*8 m(nbod), x(3,nbod), v(3,nbod), s(3,nbod)
-      real*8 rho(nbod), rceh(nbod), rcrit(nbod), ngf(4,nbod)
+      real*8 rho(nbod), rceh(nbod), rcrit(nbod), ngf(5,nbod)
       character*25 id(nbod)
       character*80 outfile, mem(NMESS)
 c
@@ -7181,10 +7173,7 @@ c Eliminate unwanted objects
           rceh(j) = rceh(l)
           stat(j) = stat(l)
           id(j) = id(l)
-          ngf(1,j) = ngf(1,l)
-          ngf(2,j) = ngf(2,l)
-          ngf(3,j) = ngf(3,l)
-          ngf(4,j) = ngf(4,l)
+          ngf(:,j) = ngf(:,l)
         end do
       end do
 c
@@ -7449,7 +7438,7 @@ c
 c Input/Output
       integer nbod,nbig,ngflag,opt(8),stat(nbod)
       real*8 time,tstart,h0,tol,jcen(3),m(nbod),x(3,nbod),v(3,nbod)
-      real*8 s(3,nbod),rceh(nbod),rho(nbod),epoch(nbod),ngf(4,nbod)
+      real*8 s(3,nbod),rceh(nbod),rho(nbod),epoch(nbod),ngf(5,nbod)
       character*25 id(nbod)
 c
 c Local
@@ -7538,7 +7527,7 @@ c
       end do
 c
 c Keep force parameters attached to each body after sorting.
-      do k = 1, 4
+      do k = 1, 5
         do j = 1, nsml
           rtemp(j) = ngf(k,j+nbig)
         end do

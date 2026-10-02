@@ -3,6 +3,7 @@
 
 // Plain C ABI consumed by ISO_C_BINDING. Arrays at the boundary retain
 // Mercury's Fortran layout; the device uses component-major storage.
+// ngf has five components per body: A1, cometary A2, A3, beta, yar.
 struct MercuryEvent {
     int i, j, kind, now;
     double distance, time;

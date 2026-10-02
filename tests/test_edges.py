@@ -40,16 +40,17 @@ class Edges(unittest.TestCase):
         self.assertEqual(len(dump(p)),4096)
 
     def test_mixed_epochs_keep_coefficients(self):
-        objs=[body('LATE',a2=1e-10,ep=2),body('EARLY',a2=-3e-10,b=.001,ep=-2)]
+        objs=[body('LATE',a2=-2e-11,yar=1e-10,ep=2),body('EARLY',a2=4e-11,yar=-3e-10,b=.001,ep=-2)]
         p=self.case('mixed',small=objs,start=0,stop=10,interval=.7)
         merged=dump(p)
         for obj in objs:
             ref=self.case(obj['name'],small=[obj],start=0,stop=10,interval=.7)
             self.assertState({obj['name']:merged[obj['name']]},dump(ref),tol=2e-10)
-            self.assertEqual(merged[obj['name']]['params']['a2'],obj['params']['a2'])
+            for key in ['a2','yar']:
+                self.assertEqual(merged[obj['name']]['params'][key],obj['params'][key])
 
     def test_dissipative_roundtrip_and_radau(self):
-        obj=body(a=.7,e=.2,a2=1e-9,b=.001)
+        obj=body(a=.7,e=.2,yar=1e-9,b=.001)
         bs=self.case('bs',small=[obj],stop=20,interval=1,pn=True)
         ra=self.case('ra',small=[obj],stop=20,interval=1,pn=True,algorithm='RADAU')
         self.assertState(dump(bs),dump(ra),tol=2e-10)
@@ -71,11 +72,11 @@ class Edges(unittest.TestCase):
 
     def test_restart_switches_backend(self):
         if load_gpu() is None: self.skipTest('CUDA unavailable')
-        p=self.case('restart',small=[body(a2=2e-12,b=1e-4)],stop=5,interval=1,pn=True)
+        p=self.case('restart',small=[body(yar=2e-12,b=1e-4)],stop=5,interval=1,pn=True)
         (p/'param.dmp').write_text(re.sub(r'(stop time.*?=)\s*[^\n]+',r'\g<1> 15',(p/'param.dmp').read_text(),flags=re.I))
         (p/'param.in').write_text((p/'param.in').read_text().replace('backend = cpu','backend = cuda'))
         run(p)
-        reference=self.case('reference',small=[body(a2=2e-12,b=1e-4)],stop=15,interval=1,pn=True)
+        reference=self.case('reference',small=[body(yar=2e-12,b=1e-4)],stop=15,interval=1,pn=True)
         self.assertState(dump(p),dump(reference),tol=1e-10)
         self.assertIn('Execution backend: CUDA',(p/'info.out').read_text())
 

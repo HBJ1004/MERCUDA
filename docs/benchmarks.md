@@ -2,6 +2,11 @@
 
 [MERCUDA overview](../README.md) · [Usage guide](../README_MERCUDA.md)
 
+These figures were measured with force model 1 at the revision recorded below.
+That version called the Yarkovsky coefficient `A2`; equivalent inputs now use
+`yar` with cometary `A2=0`. Historical results and labels are retained; the
+figures have not been rerun for this input change.
+
 These measurements compare **identical Newtonian physics**, with PN, PR, A1/A2/A3
 and oblateness disabled. The example below uses eight planets and 100,000
 massless particles for 365 days; timings include startup and final output.
@@ -90,4 +95,3 @@ on hardware, algorithm, population, encounters and output cadence. Startup can
 dominate short runs. These stable-orbit measurements do not establish universal
 accuracy equivalence, and earlier testing found CPU MVS regressions in some other
 configurations. Check convergence for your intended problem.
-

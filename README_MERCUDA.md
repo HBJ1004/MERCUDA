@@ -19,9 +19,11 @@ MERCUDA also changes CPU runs: it improves speed, removes the fixed 2,000-body
 limit, and corrects several integration problems, including backward integration.
 It is therefore not identical to the original MERCURY6, even on CPU.
 
-**A2 now means Yarkovsky drift, not cometary transverse outgassing.** Review old
-A2 values before using existing inputs. Old restart files with A2 or relativity
-enabled cannot be continued under the new model; start from initial conditions.
+**A1, A2 and A3 retain their original cometary meaning.** Yarkovsky drift uses
+the separate `yar` input. If you used A2 for Yarkovsky in an earlier MERCUDA
+version, change it to `yar` in your initial input files. Earlier MERCUDA dumps
+are converted automatically; unversioned legacy dumps with relativity enabled
+cannot be continued under the new model.
 [Details of these changes](docs/technical_notes.md#changes-from-mercury6).
 
 ## Your first run: step by step
@@ -152,7 +154,7 @@ All five methods below can run on CPU or GPU.
 | --- | --- |
 | BS | Supports all built-in forces, including velocity-dependent and dissipative terms. |
 | RADAU | Supports all built-in forces, including velocity-dependent and dissipative terms. |
-| BS2 | Use for gravity, including central-body oblateness. PN, PR and A1/A2/A3 are not supported. |
+| BS2 | Use for gravity, including central-body oblateness. PN, PR, Yarkovsky and A1/A2/A3 are not supported. |
 | MVS | PN, PR and Yarkovsky are not supported. Small bodies must have zero mass. |
 | HYBRID | PN, PR and Yarkovsky are not supported. |
 
@@ -169,19 +171,20 @@ and wide-binary methods have no working drivers in this distribution.
 | --- | --- |
 | Relativity (PN) | Change the existing `include relativity in integration` setting in `param.in` to `yes`. |
 | Radiation pressure / PR | Add `b=<beta>` on the body's name/parameter line. It applies only to bodies with zero mass. Based on Burns et al. (1979), Liou et al. (1995) and Klačka et al. (2012); see the [references](docs/references.md). |
-| Yarkovsky drift | Add `A2=<value>` on the body's name/parameter line in `big.in` or `small.in`. It defaults to zero. |
+| Cometary acceleration | Use `A1`, `A2` and `A3` as in MERCURY6 for radial, transverse and normal acceleration. |
+| Yarkovsky drift | Add `yar=<value>` on the body's name/parameter line in `big.in` or `small.in`. It defaults to zero. |
 
 For example, a massive asteroid's name/parameter line can be:
 
 ```text
-ASTEROID m=1.0d-15 r=1.0d0 d=2.5d0 A2=-3.0d-14
+ASTEROID m=1.0d-15 r=1.0d0 d=2.5d0 yar=-3.0d-14
 ```
 
 Keep its following position/elements, velocity and spin lines in the usual format.
-A2 is measured in AU/day² at 1 AU. Positive A2 acts along orbital motion;
-negative A2 acts against it. It applies to both massive and massless bodies.
-A2 does not also supply cometary transverse outgassing; A1 and A3 keep their
-original cometary meaning. Beta is dimensionless and defaults to zero.
+`yar` is measured in AU/day² at 1 AU. Positive `yar` acts along orbital motion;
+negative `yar` acts against it. It applies to both massive and massless bodies.
+Cometary A2 and Yarkovsky `yar` are independent; you can specify both on the same
+parameter line. Beta is dimensionless and defaults to zero.
 
 These are simplified force models. The [technical notes](docs/technical_notes.md#forces-and-body-input)
 give their equations and limits, and the [references](docs/references.md) identify
@@ -192,9 +195,9 @@ the literature they are based on.
 For backward integration, set the stop time earlier than the start time.
 With PR or Yarkovsky, reversing velocities is not a substitute for integrating
 backward. **Both effects can be included in backward runs using BS or RADAU:**
-keep the starting velocities, beta and A2 unchanged, and set an earlier stop time.
+keep the starting velocities and all force parameters unchanged, and set an earlier stop time.
 For bound orbits, backward integration retraces the usual PR inward drift outward
-into the past and reverses the Yarkovsky drift (positive A2 inward, negative A2
+into the past and reverses the Yarkovsky drift (positive `yar` inward, negative `yar`
 outward). This follows the assumed force model into the past; errors and uncertain
 force values can make long-term reconstruction less reliable.
 

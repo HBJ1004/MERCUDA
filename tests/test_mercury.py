@@ -39,15 +39,30 @@ class Forces(unittest.TestCase):
         self.cpu.mfo_pn_(C.byref(n),C.byref(n),arr(m),arr(x),arr([-k for k in v]),a2)
         self.assertEqual(bytes(a),bytes(a2))
 
-    def test_a2_inverse_square_and_direction(self):
+    def test_yar_inverse_square_and_direction(self):
         # Includes beyond the cometary cutoff and a massive big body.
         for r in [1.,2.,20.]:
             for sign in [-1,1]:
                 a=arr([0.]*6); n=I(2); A2=sign*1e-10
-                self.cpu.mfo_ngf_(C.byref(n),arr([0,0,0,r,0,0]),arr([0,0,0,.01,.02,0]),a,arr([0,0,0,0,0,A2,0,0]))
+                self.cpu.mfo_ngf_(C.byref(n),arr([0,0,0,r,0,0]),arr([0,0,0,.01,.02,0]),a,arr([0,0,0,0,0,0,0,0,0,A2]))
                 self.assertEqual(a[3],0.)
                 self.assertAlmostEqual(a[4]/(A2/r**2),1.,places=14)
                 self.assertEqual(a[5],0.)
+
+    def test_cometary_a2_and_yar_are_independent(self):
+        # At 1 AU both laws are nearly normalized alike; at 2/20 AU they differ.
+        for radius in [1.,2.,20.]:
+            for comet in [0.,-2e-10,2e-7]:
+                for thermal in [0.,3e-11]:
+                    ng=[0.,0.,0.,0.,0.,0.,comet,0.,0.,thermal]
+                    a=arr([0.]*6); n=I(2)
+                    self.cpu.mfo_ngf_(C.byref(n),arr([0,0,0,radius,0,0]),
+                                     arr([0,0,0,.01,.02,0]),a,arr(ng))
+                    q=radius/2.808
+                    g=.111262*q**(-2.15)*(1+q**5.093)**(-4.6142)
+                    expected=(comet*g if radius**2<88 or abs(comet)>1e-7 else 0)+thermal/radius**2
+                    self.assertAlmostEqual(a[4],expected,delta=max(abs(expected)*2e-14,1e-30))
+                    self.assertEqual(a[3],0.);self.assertEqual(a[5],0.)
 
     def test_gpu_force_matrix(self):
         if self.gpu is None: self.skipTest('CUDA unavailable')
@@ -60,8 +75,8 @@ class Forces(unittest.TestCase):
         v=[0.,0.,0.]+[rng.uniform(-.02,.02) for _ in range(3*(n-1))]
         for pn in [False,True]:
             for flag in range(4):
-                ng=[0.,0.,0.,0.]
-                for j in range(1,n): ng.extend([1e-12 if flag&1 else 0,(-1)**j*2e-11 if flag&1 else 0,3e-13 if flag&1 else 0,.001 if flag&2 else 0])
+                ng=[0.,0.,0.,0.,0.]
+                for j in range(1,n): ng.extend([1e-12 if flag&1 else 0,(-1)**j*2e-11 if flag&1 else 0,3e-13 if flag&1 else 0,.001 if flag&2 else 0,(-1)**j*4e-11 if flag&1 else 0])
                 jcen=[1e-7,-1e-10,1e-13]
                 expected=cpu_force(self.cpu,m,x,v,ng,jcen,3,pn,flag)
                 rc=arr([.01]*n); actual=arr([0.]*(3*n))
@@ -108,7 +123,7 @@ class Integration(unittest.TestCase):
     def test_cpu_gpu_full_forces(self):
         if load_gpu() is None: self.skipTest('CUDA unavailable')
         big=[body('PLANET',mass=1e-6,a=2,e=.03)]
-        small=[body('P'+str(i),a=.5+.07*i,e=.15,phase=.3*i,a2=(-1)**i*1e-11,b=1e-4) for i in range(20)]
+        small=[body('P'+str(i),a=.5+.07*i,e=.15,phase=.3*i,yar=(-1)**i*1e-11,b=1e-4) for i in range(20)]
         for direction in [-1,1]:
             cpu=self.case('cpu'+str(direction),big=big,small=small,stop=direction*80.,pn=True)
             gpu=self.case('gpu'+str(direction),big=big,small=small,stop=direction*80.,pn=True,backend='cuda')
@@ -127,14 +142,14 @@ class Integration(unittest.TestCase):
     def test_yarkovsky_secular_drift(self):
         A2=1e-10; period=2*math.pi/math.sqrt(MU); duration=10*period; e=.1
         for sign in [-1,1]:
-            p=self.case('drift'+str(sign),small=[body(a2=sign*A2)],stop=duration,interval=period,step=3,tol=1e-12)
+            p=self.case('drift'+str(sign),small=[body(yar=sign*A2)],stop=duration,interval=period,step=3,tol=1e-12)
             o=dump(p)['PARTICLE']; r=math.sqrt(sum(v*v for v in o['x'])); vsq=sum(v*v for v in o['v'])
             afinal=1/(2/r-vsq/MU); expected=sign*2*A2/(math.sqrt(MU)*(1-e*e))*duration
             self.assertLess(abs((afinal-1)/expected-1),.003)
 
-    def test_input_guards_and_big_a2(self):
-        p=self.case('big_a2',big=[body('BIG',mass=1e-15,a2=3.4e-14)],small=[],stop=3)
-        self.assertEqual(dump(p,'big.dmp')['BIG']['params']['a2'],3.4e-14)
+    def test_input_guards_and_big_yar(self):
+        p=self.case('big_a2',big=[body('BIG',mass=1e-15,yar=3.4e-14)],small=[],stop=3)
+        self.assertEqual(dump(p,'big.dmp')['BIG']['params']['yar'],3.4e-14)
         for name,kw,message in [('bad_backend',dict(backend='cuda',user_force=True),'CUDA requires'),('bad_force',dict(pn=True,algorithm='BS2'),'require BS'),('duplicate',dict(small=[body(),body()]),'Duplicate body'),('zero_interval',dict(interval=0),'interval')]:
             p=prepare(self.base/name,**kw); res=run(p,check=False)
             self.assertNotEqual(res.returncode,0,(name,res.stdout)); self.assertIn(message,(res.stdout+res.stderr))
@@ -147,13 +162,56 @@ class Integration(unittest.TestCase):
                               small=[body(b=.001)],stop=1)
                     result=run(p,check=False)
                     self.assertNotEqual(result.returncode,0)
-                    self.assertIn('PN, A2 and PR require BS or RADAU',result.stdout+result.stderr)
+                    self.assertIn('PN, yar and PR require BS or RADAU',result.stdout+result.stderr)
+
+    def test_distinct_inputs_and_restart_migration(self):
+        obj=body('BOTH',a2=-2e-11,yar=3e-12,b=1e-4)
+        p=self.case('both',small=[obj],stop=5,interval=1)
+        params=dump(p)['BOTH']['params']
+        self.assertEqual(params['a2'],-2e-11); self.assertEqual(params['yar'],3e-12)
+        self.assertIn('force model version = 2',(p/'param.dmp').read_text())
+        # Simulate an earlier MERCUDA dump: A2 then meant Yarkovsky.
+        old=self.case('v1',small=[body(yar=3e-12,b=1e-4)],stop=5,interval=1)
+        text=(old/'param.dmp').read_text().replace('version = 2','version = 1')
+        text=re.sub(r'(stop time.*?=)\s*[^\n]+',r'\g<1> 10',text,flags=re.I)
+        (old/'param.dmp').write_text(text)
+        (old/'small.dmp').write_text((old/'small.dmp').read_text().replace(' yar=',' a2='))
+        run(old)
+        ref=self.case('v1ref',small=[body(yar=3e-12,b=1e-4)],stop=10,interval=1)
+        self.assertState(dump(old),dump(ref),tol=1e-10)
+        self.assertNotIn('a2',dump(old)['PARTICLE']['params'])
+        self.assertEqual(dump(old)['PARTICLE']['params']['yar'],3e-12)
+        self.assertIn('Migrated force model 1',(old/'info.out').read_text())
+
+    def test_cometary_a2_legacy_restart_and_symplectic_support(self):
+        for method in ['BS','MVS','HYBRID']:
+            for backend in ['cpu','cuda']:
+                if backend=='cuda' and load_gpu() is None: continue
+                p=self.case(method+backend+'comet',algorithm=method,backend=backend,
+                            small=[body(a2=2e-12)],stop=5,step=.5,interval=1)
+                text=(p/'param.dmp').read_text()
+                text=re.sub(r'^.*force model version.*\n','',text,flags=re.M)
+                text=re.sub(r'(stop time.*?=)\s*[^\n]+',r'\g<1> 10',text,flags=re.I)
+                (p/'param.dmp').write_text(text);run(p)
+                ref=self.case(method+backend+'cometref',algorithm=method,backend=backend,
+                              small=[body(a2=2e-12)],stop=10,step=.5,interval=1)
+                self.assertState(dump(p),dump(ref),tol=1e-10)
+                self.assertEqual(dump(p)['PARTICLE']['params']['a2'],2e-12)
+
+    def test_yar_rejected_for_incompatible_methods(self):
+        for method in ['BS2','MVS','HYBRID']:
+            for backend in ['cpu','cuda']:
+                p=prepare(self.base/(method+backend+'yar'),algorithm=method,backend=backend,
+                          small=[body(yar=1e-12)],stop=1)
+                result=run(p,check=False)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn('PN, yar and PR require BS or RADAU',result.stdout+result.stderr)
 
     def test_restart_and_postprocessors(self):
-        p=self.case('restart',pn=True,small=[body(a2=1e-12)],stop=10,interval=1)
+        p=self.case('restart',pn=True,small=[body(yar=1e-12)],stop=10,interval=1)
         text=(p/'param.dmp').read_text(); text=re.sub(r'(stop time.*?=)\s*[^\n]+',r'\g<1> 20',text,flags=re.I); (p/'param.dmp').write_text(text)
         run(p)
-        ref=self.case('full',pn=True,small=[body(a2=1e-12)],stop=20,interval=1)
+        ref=self.case('full',pn=True,small=[body(yar=1e-12)],stop=20,interval=1)
         self.assertState(dump(p),dump(ref),tol=1e-10)
         for prog in ['element','close']:
             shutil.copy(ROOT/(prog+'.in.sample'),p/(prog+'.in'))

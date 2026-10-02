@@ -15,7 +15,7 @@ and [manual](../mercury6.man) describe the inherited methods and file formats.
 | Integration corrections | Direction-aware adaptive scheduling, BS2 error-norm correction, signed BS stages, RADAU velocity-dependent prediction, and event/impact timing corrections apply on CPU too. |
 | Relativity | Honors the existing input switch and uses a central-mass Cartesian Schwarzschild 1PN acceleration, replacing the supplied Marion-based prescription. Original unmodified MERCURY6's PN routine was a placeholder. |
 | Radiation pressure / PR | Preserves the supplied prescription, based on [Burns, Lamy & Soter (1979)](https://doi.org/10.1016/0019-1035(79)90050-2), [Liou, Zook & Jackson (1995)](https://doi.org/10.1006/icar.1995.1120), and [Klačka et al. (2012)](https://doi.org/10.1111/j.1365-2966.2012.20321.x). Original unmodified MERCURY6's PR routine was a placeholder. |
-| Non-gravitational coefficients | A1/A3 retain the cometary law. A2 defaults to zero and now specifies an inverse-square transverse Yarkovsky acceleration, including for massive bodies. Old cometary A2 values have a different meaning. |
+| Non-gravitational coefficients | A1/A2/A3 retain the cometary law. The separate `yar` input defaults to zero and specifies an inverse-square transverse Yarkovsky acceleration, including for massive bodies. |
 | Diagnostics and dumps | Reports the execution backend and workload/timing counters; dumps preserve force parameters and identify the force model. |
 
 **MERCUDA CPU is not identical to either original MERCURY6 or the supplied
@@ -145,29 +145,51 @@ specializations. CPU PN is fused into the final gravity pass. PN off has no PN
 arithmetic or additional force pass. PN on still requires arithmetic, so its
 runtime cost is measured rather than assumed to be zero.
 
-A2 defaults to zero and can be placed on a body's ordinary parameter row in
+`yar` defaults to zero and can be placed on a body's ordinary parameter row in
 **either `big.in` or `small.in`**, for example:
 
 ```
-ASTEROID m=1.0d-15 r=1.0d0 d=2.5d0 A2=-3.0d-14
+ASTEROID m=1.0d-15 r=1.0d0 d=2.5d0 yar=-3.0d-14
   ... existing position/elements, velocity and spin rows ...
 ```
 
-A2 is in **AU/day² at 1 AU**, with
+`yar` is in **AU/day² at 1 AU**, with
 
 ```
 v_transverse = v - (r_vector · v)/r^2 * r_vector
- a_Yarkovsky = A2 * (1 AU/r)^2 * v_transverse/|v_transverse|
+ a_Yarkovsky = yar * (1 AU/r)^2 * v_transverse/|v_transverse|
 ```
 
-Positive A2 accelerates along orbital motion; negative A2 gives the opposite
+Positive `yar` accelerates along orbital motion; negative `yar` gives the opposite
 sign. It acts on massive and massless bodies and has no cometary distance
-cutoff. A nonzero A2 with an undefined transverse direction is rejected.
+cutoff. A nonzero `yar` with an undefined transverse direction is rejected.
 This is the commonly fitted transverse model, not a thermophysical model of
 spin and heat transport; see [Farnocchia et al. (2013)](https://arxiv.org/abs/1212.4812).
-A1 and A3 retain their cometary Marsden distance law. **A2 always means Yarkovsky
-in this version**, replacing Mercury's old cometary transverse coefficient.
-PN, A2, and PR require `BS` or `RADAU`; incompatible algorithms are rejected.
+The coefficient called A2 in Farnocchia et al. is named `yar` in the input files
+to distinguish it from MERCURY6's cometary A2.
+
+A1, A2 and A3 retain the original Marsden cometary law:
+
+```
+q = r/(2.808 AU)
+g(r) = 0.111262 q^(-2.15) [1 + q^5.093]^(-4.6142)
+a_comet = g(r) [A1 r_hat + A2 t_hat + A3 n_hat]
+```
+
+Here `t_hat` is the normalized transverse velocity and `n_hat` is the normalized
+orbital angular momentum. The inherited cometary cutoff applies unless
+`r^2 < 88 AU^2` or any of `|A1|`, `|A2|`, `|A3|` exceeds `1e-7 AU/day²`.
+Yarkovsky has no such cutoff. Both transverse terms can be enabled together;
+their accelerations are added. Undefined directions are rejected only when the
+corresponding nonzero coefficient requires them.
+PN, `yar`, and PR require `BS` or `RADAU`; incompatible algorithms are rejected.
+Cometary coefficients retain the original method restrictions.
+
+The internal non-gravitational array now has five components per body:
+`[A1, A2, A3, beta, yar]`. CUDA uploads all five. The preserved four-component
+Fortran PR routine receives a packed `ngf(1:4,:)` section, keeping its original
+equations and beta position unchanged. External callers of the CUDA upload API
+must supply the new five-component array.
 
 ## Backward integration and restarts
 
@@ -195,25 +217,28 @@ same velocity-reversal comparison with unchanged coefficients. Signed-time
 integration follows the supplied equations backward; drag then undoes its
 forward evolution and can amplify numerical errors. BS and RADAU support this on
 CPU and CUDA: use an earlier stop time with the same physical velocities, beta
-and A2. Do not negate these parameters to obtain a backward run.
+and all non-gravitational coefficients. Do not negate these parameters to obtain a backward run.
 
 For bound orbits with positive beta, the PR contribution usually decreases
 semimajor axis forward in time, so its secular trend is traced outward into the
-past. The fitted Yarkovsky term has forward secular drift with the sign of A2
+past. The fitted Yarkovsky term has forward secular drift with the sign of `yar`
 ([Farnocchia et al. 2013, equations 1–5](https://arxiv.org/html/1212.4812)); integrating
-those equations toward earlier times traces positive-A2 drift inward and
-negative-A2 drift outward. These describe the contributions of the added forces,
+those equations toward earlier times traces positive-`yar` drift inward and
+negative-`yar` drift outward. These describe the contributions of the added forces,
 not a guarantee that the total orbit changes monotonically when planetary
 perturbations or encounters are present. Recovering a trajectory under fixed
 coefficients is mathematically possible; it does not establish the actual past
 values of beta, spin, or thermal properties.
 
-New dumps retain A2/beta precision and record `force model version = 1`.
+New dumps retain A2/yar/beta precision and record `force model version = 2`.
 Restarts read the dynamics from the dump files as Mercury traditionally does.
 Only `execution backend` can be overridden in the ordinary `param.in`, allowing
-CPU/CUDA restart changes. Legacy dumps with nonzero A2 or enabled PN are rejected
-rather than silently interpreted under the changed model. Old gravitational or
-PR-only dumps remain accepted. The ordinary energy report is Newtonian and
+CPU/CUDA restart changes. Version-1 MERCUDA dumps automatically move their old
+Yarkovsky A2 to `yar` and clear cometary A2. A version-1 dump that also contains
+nonzero `yar` is rejected as ambiguous. Unversioned legacy dumps retain the
+original cometary A2 interpretation; they are rejected only if PN is enabled,
+because the PN equation changed. Old gravitational, cometary and PR-only dumps
+remain accepted. The ordinary energy report is Newtonian and
 should not be interpreted as a conserved-energy error under these extra forces.
 
 ## Validation and timing
@@ -221,21 +246,23 @@ should not be interpreted as a conserved-energy error under these extra forces.
 `make test` runs isolated standard-library Python regression tests; it never runs
 the user's input files. Tests cover analytic force values, byte-for-byte PR
 preservation, CPU/CUDA force and trajectory comparisons, reverse integration,
-round trips, off-grid preparation, relativistic precession, secular A2 drift,
+round trips, off-grid preparation, relativistic precession, secular Yarkovsky drift,
 CPU/CUDA restart switching across all five production algorithms, postprocessing,
 collisions (including a HYBRID merger and central impact in one step), ejections,
 and 4100 simultaneous
 encounter records. GPU tests skip when CUDA is unavailable. `make test-debug` runs the same tests
 with Fortran bounds and runtime checks in a separate build directory.
 
-## A2 compatibility
+## A2 and yar compatibility
 
-A2 specifies the Yarkovsky transverse term in MERCUDA. It does not also supply
-cometary transverse outgassing. A1 and A3 still use the cometary distance law.
-A cometary A2 fitted using that law cannot be transferred unchanged to the
-Yarkovsky model. Modeling both transverse effects would require separate
-coefficients and adding their accelerations; that is not currently implemented.
-PR uses its separate beta parameter, and PN uses the relativity switch.
+`A2` specifies cometary transverse outgassing; `yar` specifies the fitted
+Yarkovsky transverse acceleration. Their distance laws differ, so a fitted
+coefficient cannot be transferred unchanged between them. Initial input files
+from earlier MERCUDA versions that used A2 for Yarkovsky must be edited to use
+`yar`; ordinary unversioned inputs cannot identify that earlier interpretation.
+Versioned restart dumps migrate automatically as described above.
+Both terms may be present and are added independently. PR uses its separate
+beta parameter, and PN uses the relativity switch.
 
 ## Further reading
 

@@ -78,10 +78,13 @@ class Events(unittest.TestCase):
         escaping=body('ESCAPE'); escaping['x']=[99.9,0,0]; escaping['v']=[10.,0,0]
         results=[]
         for backend in self.backends():
-            p=prepare(self.base/(algorithm+backend),algorithm=algorithm,small=[infall,escaping,body('KEEP')],backend=backend,stop=.3,step=.001,interval=.05)
+            p=prepare(self.base/(algorithm+backend),algorithm=algorithm,small=[infall,escaping,body('KEEP',**({'a2':2e-11,'yar':3e-12,'b':1e-4} if algorithm in ['BS','RADAU'] else {}))],backend=backend,stop=.3,step=.001,interval=.05)
             text=(p/'param.in').read_text(); text=re.sub(r'(periodic effects.*?=)\s*[^\n]+',r'\g<1> 10',text,flags=re.I)
             (p/'param.in').write_text(text); run(p)
             state=dump(p); self.assertEqual(set(state),{'KEEP'}); results.append(state)
+            if algorithm in ['BS','RADAU']:
+                for key,value in [('a2',2e-11),('yar',3e-12),('b',1e-4)]:
+                    self.assertEqual(state['KEEP']['params'][key],value)
             log=(p/'info.out').read_text(); self.assertIn('IMPACT',log); self.assertIn('ESCAPE',log)
         if len(results)==2: self.assertState(*results,tol=1e-10)
 
@@ -92,6 +95,6 @@ class Events(unittest.TestCase):
             self.assertEqual(sum(r.startswith(b'\x0c6b') for r in records),4)
 
     def test_nonfinite_scalar_rejected(self):
-        for key in ['a2','m','b']:
+        for key in ['a2','yar','m','b']:
             p=prepare(self.base/key,small=[body(**{key:float('nan')})])
             result=run(p,check=False); self.assertNotEqual(result.returncode,0); self.assertIn('Nonfinite',result.stderr)

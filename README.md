@@ -21,15 +21,16 @@ options. The additional choices are:
    CPU is the default if omitted; `auto` chooses a backend by particle count and
    availability. CUDA needs an NVIDIA GPU, driver and toolkit.
 3. **Check force settings:** PN uses the existing relativity switch. Yarkovsky
-   uses `A2=<value>` on the body's parameter line in `big.in` or `small.in`
+   uses `yar=<value>` on the body's parameter line in `big.in` or `small.in`
    (AU/day² at 1 AU; default zero). PR uses `b=<beta>` for massless bodies.
-   **Use BS or RADAU for PN, PR or Yarkovsky.** Old cometary A2 values now have a
-   different meaning.
+   **Use BS or RADAU for PN, PR or Yarkovsky.** `A1`, `A2` and `A3` retain
+   their original cometary meaning. Change earlier MERCUDA Yarkovsky inputs
+   from `A2` to `yar`.
 4. **Run:** `./mercury6`, then `./element6` or `./close6` as usual. Check
    `info.out` to confirm CPU or CUDA actually ran. Custom `mfo_user` forces need CPU.
 5. **Restart or rerun:** dynamics still come from dumps; only the backend can be
-   overridden in ordinary `param.in`. Old dumps with PN or nonzero A2 are
-   incompatible. For a fresh run, save needed results before `make rm-gen`
+   overridden in ordinary `param.in`. Earlier MERCUDA dumps migrate automatically;
+   unversioned legacy dumps with PN are incompatible. For a fresh run, save needed results before `make rm-gen`
    removes outputs and dumps. **`make clean` also deletes `.in` files.**
 
 [Usage and compatibility details](README_MERCUDA.md).

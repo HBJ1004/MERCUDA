@@ -133,7 +133,7 @@ contains
   end subroutine
   subroutine gpu_push(n,nbig,m,x,v,ngf,jcen,rce,rphys,opt,ngflag)
     integer,intent(in) :: n,nbig,opt(8),ngflag
-    real(8),intent(in) :: m(n),x(3,n),v(3,n),ngf(4,n),jcen(3),rce(n),rphys(n)
+    real(8),intent(in) :: m(n),x(3,n),v(3,n),ngf(5,n),jcen(3),rce(n),rphys(n)
     if(.not.gpu_enabled.or..not.gpu_dirty) return
     if(upload(n,nbig,opt(7),ngflag,m,x,v,ngf,jcen,rce,rphys)/=0) then
       if(backend_request==2.and.current_n==0) then
@@ -186,7 +186,7 @@ contains
   end subroutine
   subroutine gpu_bcoord(time,jcen,n,nbig,h,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
     integer :: n,nbig,ngflag,opt(8)
-    real(8) :: time,jcen(3),h,m(n),x(3,n),v(3,n),xh(3,n),vh(3,n),ngf(4,n)
+    real(8) :: time,jcen(3),h,m(n),x(3,n),v(3,n),xh(3,n),vh(3,n),ngf(5,n)
     external bcoord
     if(gpu_enabled.and..not.gpu_dirty) then
       call gpu_export(h,1,xh,vh)

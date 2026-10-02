@@ -97,7 +97,7 @@ class GPUAlgorithms(unittest.TestCase):
         for direction in [-1,1]:
             for pn in [False,True]:
                 self.compare('RADAU',massive=True,pn=pn,stop=direction*32,interval=7.3,
-                             params={'a2':1e-12,'b':.001} if pn else None)
+                             params={'yar':1e-12,'b':.001} if pn else None)
 
     def test_bs2(self):
         for massive in [False,True]:
@@ -107,7 +107,7 @@ class GPUAlgorithms(unittest.TestCase):
     def test_bs_semi_active(self):
         for direction in [-1,1]:
             self.compare('BS',massive=True,pn=True,stop=direction*32,
-                         params={'a2':1e-12,'b':.001})
+                         params={'yar':1e-12,'b':.001})
 
 
 if __name__=='__main__': unittest.main()

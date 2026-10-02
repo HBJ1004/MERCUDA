@@ -98,27 +98,28 @@ __global__ void indirect_force(Config c,const double* pos,const double* m,double
 
 __device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
     const double u[3],double rv,const double* m,const double* ng,double a[3],int* bad) {
-    // A1/A3 Marsden, Sekanina & Yeomans (1973), AJ 78, 211-225:
-    // https://doi.org/10.1086/111402; original cometary g(r) below.
+    // A1/A2/A3: Marsden, Sekanina & Yeomans (1973), AJ 78, 211-225.
+    // https://doi.org/10.1086/111402; original cometary g(r) and cutoff.
+    // YAR: Farnocchia et al. (2013), Icarus 224, 1-13, distance exponent 2.
+    // https://doi.org/10.1016/j.icarus.2013.02.004
+    // a_Y = yar*(1 AU/r)^2*unit(v - (r.v)/r^2*r).
     if(c.ngflag==1||c.ngflag==3) {
-        double a1=ng[j],a2=ng[c.n+j],a3=ng[2*c.n+j];
-        if((a1!=0||a3!=0)&&(r2<88.0||fabs(a1)>1e-7||fabs(a2)>1e-7||fabs(a3)>1e-7)) {
+        double a1=ng[j],a2=ng[c.n+j],a3=ng[2*c.n+j],yar=ng[4*c.n+j];
+        double t[3],norm2=0;
+        for(int k=0;k<3;k++) { t[k]=u[k]-(rv/r2)*r[k]; norm2+=t[k]*t[k]; }
+        if((a1!=0||a2!=0||a3!=0)&&(r2<88.0||fabs(a1)>1e-7||fabs(a2)>1e-7||fabs(a3)>1e-7)) {
             double q=sqrt(r2)*.3561253561253561;
             double g=.111262*pow(q,-2.15)*pow(1.0+pow(q,5.093),-4.6142);
             double normal[3]={r[1]*u[2]-r[2]*u[1],r[2]*u[0]-r[0]*u[2],r[0]*u[1]-r[1]*u[0]};
             double nn=sqrt(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
             if(a3!=0&&nn==0) { atomicExch(bad,1); return; }
-            for(int k=0;k<3;k++) a[k]+=a1*g*inv*r[k]+(a3==0?0:a3*g/nn*normal[k]);
+            if(a2!=0&&!(norm2>0)) { atomicExch(bad,1); return; }
+            for(int k=0;k<3;k++) a[k]+=a1*g*inv*r[k]+(a2==0?0:a2*g/sqrt(norm2)*t[k])
+                +(a3==0?0:a3*g/nn*normal[k]);
         }
-        // Empirical transverse A2 with distance exponent 2: Farnocchia
-        // et al. (2013), Icarus 224, 1-13; not a thermophysical model.
-        // https://doi.org/10.1016/j.icarus.2013.02.004
-        // a_Y = A2*(1 AU/r)^2*unit(v - (r.v)/r^2*r).
-        if(a2!=0) {
-            double t[3],norm2=0;
-            for(int k=0;k<3;k++) { t[k]=u[k]-(rv/r2)*r[k]; norm2+=t[k]*t[k]; }
+        if(yar!=0) {
             if(!(norm2>0)) { atomicExch(bad,1); return; }
-            double f=a2/(r2*sqrt(norm2));
+            double f=yar/(r2*sqrt(norm2));
             for(int k=0;k<3;k++) a[k]+=f*t[k];
         }
     }
@@ -390,7 +391,7 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
             if(size_t(n)*(algorithm==2?800:1100)>free_bytes*8/10) throw std::runtime_error("Insufficient device workspace memory");
             for(double** p:{&x,&v,&oldx,&oldv,&wx,&wv,&ex,&ev,&acc,&acc0}) allocate(*p,size_t(3)*n);
             allocate(table,size_t(algorithm==3?72:algorithm==4?63:48)*n); allocate(scale,size_t(2)*n);
-            allocate(mass,n); allocate(ngf,size_t(4)*n); allocate(rce,n); allocate(rphys,n);
+            allocate(mass,n); allocate(ngf,size_t(5)*n); allocate(rce,n); allocate(rphys,n);
             allocate(boxes,size_t(4)*n); allocate(transfer,size_t(6)*n);
             allocate(partial,blocks(n)); allocate(maximum,1); allocate(indirect,3);
             allocate(fault,1); allocate(event_count,1); reserve_events(4096);
@@ -405,7 +406,7 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
         check(cudaMemcpy(mass,m,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rce,limits,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rphys,radii,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
-        upload_array(xx,x,3); upload_array(vv,v,3); upload_array(ng,ngf,4);
+        upload_array(xx,x,3); upload_array(vv,v,3); upload_array(ng,ngf,5);
         check(cudaMemset(fault,0,sizeof(int))); check(cudaDeviceSynchronize());
         return 0;
     } catch(const std::exception& e) { return error(e); }
