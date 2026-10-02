@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "claims": [
+    {"id":"build", "document":"README_MERCUDA.md", "section":"Using the GPU", "groups":["build","workflow"]},
+    {"id":"first-run", "document":"README_MERCUDA.md", "section":"Your first run: step by step", "groups":["workflow"]},
+    {"id":"methods", "document":"README_MERCUDA.md", "section":"Choosing an integration method", "groups":["force-matrix","scientific","quick"]},
+    {"id":"backends", "document":"README_MERCUDA.md", "section":"Using the GPU", "groups":["backends","quick"]},
+    {"id":"forces", "document":"README_MERCUDA.md", "section":"Adding forces", "groups":["force-values","force-matrix","scientific"]},
+    {"id":"epochs", "document":"README_MERCUDA.md", "section":"Backward runs, restarts and cleanup", "groups":["epochs","quick"]},
+    {"id":"restarts", "document":"README_MERCUDA.md", "section":"Backward runs, restarts and cleanup", "groups":["restarts","quick"]},
+    {"id":"cleanup", "document":"README_MERCUDA.md", "section":"Backward runs, restarts and cleanup", "groups":["workflow"]},
+    {"id":"formats", "document":"README_MERCURY6.md", "section":"Asteroidal =", "groups":["formats"]},
+    {"id":"mass-semantics", "document":"README_MERCURY6.md", "section":"Small bodies", "groups":["scientific","force-values","invalid"]},
+    {"id":"central-systems", "document":"README_MERCURY6.md", "section":"a system of moons", "groups":["scientific","formats"]},
+    {"id":"settings", "document":"README_MERCURY6.md", "section":"integration accuracy parameter", "groups":["workflow","epochs","invalid"]},
+    {"id":"events", "document":"README_MERCURY6.md", "section":"collisions", "groups":["events","quick"]},
+    {"id":"postprocessing", "document":"README_MERCURY6.md", "section":"Converting data", "groups":["postprocessing","quick"]},
+    {"id":"method-limits", "document":"README_MERCURY6.md", "section":"spurious results", "groups":["scientific","events","invalid"]},
+    {"id":"capacity", "document":"docs/technical_notes.md", "section":"Body capacity", "groups":["stress","invalid"]},
+    {"id":"custom", "document":"docs/technical_notes.md", "section":"Custom `mfo_user`", "groups":["custom","backends"]},
+    {"id":"cuda-lifecycle", "document":"docs/technical_notes.md", "section":"GPU event storage", "groups":["lifecycle","sanitize","quick"]},
+    {"id":"output-grid", "document":"docs/technical_notes.md", "section":"fixed production timestep", "groups":["epochs","postprocessing","quick"]},
+    {"id":"force-migration", "document":"docs/technical_notes.md", "section":"Version-1", "groups":["restarts","quick"]},
+    {"id":"input-errors", "document":"README_MERCURY6.md", "section":"input files", "groups":["invalid"]}
+  ],
+  "limits": {
+    "force_relative": 1e-12,
+    "force_absolute": 1e-30,
+    "stable_trajectory": 1e-8,
+    "encounter_trajectory": 1e-6,
+    "reference_fraction": 0.1,
+    "refinement_factor": 2,
+    "reference_floor_factor": 10,
+    "pn_precession_fraction": 0.002,
+    "yarkovsky_drift_fraction": 0.003
+  },
+  "limitations": [
+    "Arbitrary user-written forces cannot be certified; representative CPU fixtures are tested.",
+    "MVS cannot resolve close encounters and symplectic methods need sufficiently short timesteps for eccentric orbits.",
+    "Chaotic late-time divergence is not judged by endpoint agreement alone.",
+    "PR tests certify the preserved component-wise prescription, not equivalence to the standard vector force.",
+    "Binary drivers and fragmentation are not implemented; their documented behavior is tested.",
+    "Output encoding capacity is checked arithmetically; allocating 11.2 million bodies is not required or claimed.",
+    "Full hardware validation applies only to the device, driver and compilers recorded in the report."
+  ]
+}

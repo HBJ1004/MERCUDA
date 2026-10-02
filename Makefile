@@ -13,6 +13,10 @@ CUDA ?= auto
 BUILD ?= build
 BIN ?= .
 EXEC ?= .
+PYTHON ?= python3
+VALIDATION_PYTHON ?= $(PYTHON)
+COMPUTE_SANITIZER ?= compute-sanitizer
+NVCCFLAGS ?= -O3 -std=c++17 -arch=$(CUDA_ARCH) --fmad=false -Xcompiler -fPIC
 ifeq ($(CUDA),0)
 override NVCC :=
 endif
@@ -34,7 +38,7 @@ endif
 SUPPORT := $(BUILD)/mercury_support.o
 GPU_SUPPORT := $(BUILD)/mercury_gpu.o
 FDEPENDS := mercury.inc swift.inc
-.PHONY: build cpu test test-debug clean clean-build unbuild help gen-in rm-gen rm-in FORCE
+.PHONY: build cpu test test-debug test-full test-full-cpu test-sanitize clean clean-build unbuild help gen-in rm-gen rm-in FORCE
 build: $(BIN)/mercury6 $(BIN)/element6 $(BIN)/close6
 $(BUILD)/.dir:
 	mkdir -p $(BUILD)
@@ -44,7 +48,7 @@ $(SUPPORT): mercury_support.f90 | $(BUILD)/.dir
 $(GPU_SUPPORT): mercury_gpu.f90 $(SUPPORT)
 	$(FC) $(FFLAGS) -J$(BUILD) -I$(BUILD) -c $< -o $@
 $(BUILD)/mercury_cuda.o: mercury_cuda.cu mercury_cuda.h mercury_cuda_adaptive.cuh mercury_cuda_radau.cuh mercury_cuda_symplectic.cuh mercury_cuda_kepler.cuh mercury_cuda_hybrid.cuh | $(BUILD)/.dir
-	$(NVCC) -O3 -std=c++17 -arch=$(CUDA_ARCH) --fmad=false -Xcompiler -fPIC -c $< -o $@
+	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 $(BUILD)/mercury_cuda_stub.o: mercury_cuda_stub.cpp mercury_cuda.h | $(BUILD)/.dir
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 $(BUILD)/mercury6.o: mercury6_2.for $(FDEPENDS) $(GPU_SUPPORT)
@@ -61,11 +65,18 @@ $(BIN)/close6: close6.for $(FDEPENDS) $(SUPPORT)
 cpu:
 	$(MAKE) CUDA=0 build
 test: build
-	MERCURY_TEST_BIN=$(abspath $(BIN)) MERCURY_TEST_BUILD=$(abspath $(BUILD)) MERCURY_TEST_CUDA=$(GPU_TEST) python3 -m unittest discover -s tests -p 'test_*.py' -v
+	MERCURY_TEST_BIN=$(abspath $(BIN)) MERCURY_TEST_BUILD=$(abspath $(BUILD)) MERCURY_TEST_CUDA=$(GPU_TEST) MERCURY_TEST_FFLAGS='$(FFLAGS)' $(PYTHON) -m unittest discover -s tests -p 'test_*.py' -v
 test-debug:
 	$(MAKE) BUILD=build/debug BIN=build/debug FFLAGS='-O0 -g -ffixed-line-length-none -ffp-contract=off -fcheck=all -fbacktrace' test
+test-full:
+	$(VALIDATION_PYTHON) tests/validation/run.py --sanitizer '$(COMPUTE_SANITIZER)'
+test-full-cpu:
+	$(VALIDATION_PYTHON) tests/validation/run.py --cpu-only
+test-sanitize:
+	$(VALIDATION_PYTHON) tests/validation/run.py --sanitize-only --sanitizer '$(COMPUTE_SANITIZER)'
 help:
 	@echo 'make [build] | make cpu | make test | make test-debug'
+	@echo 'make test-full | make test-full-cpu | make test-sanitize (development dependencies required)'
 	@echo 'make clean-build: remove compiled files and executables; keep simulation files'
 	@echo 'make rm-gen: remove simulation outputs and dumps; make rm-in: remove inputs'
 	@echo 'make clean: remove compiled files, executables, simulation outputs and inputs'

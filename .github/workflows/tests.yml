@@ -1,0 +1,18 @@
+name: CPU regression tests
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  cpu:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        configuration: [optimized, debug]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install compilers
+        run: sudo apt-get update && sudo apt-get install -y gfortran g++ make
+      - name: Optimized CPU tests
+        if: matrix.configuration == 'optimized'
+        run: make CUDA=0 BUILD=build/ci-opt BIN=build/ci-opt test
+      - name: Debug CPU tests
+        if: matrix.configuration == 'debug'
+        run: make CUDA=0 test-debug

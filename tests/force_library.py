@@ -5,6 +5,7 @@ import ctypes as C
 import re
 import os
 import subprocess
+import shlex
 
 D=C.c_double; I=C.c_int; P=C.POINTER(D)
 def arr(values): return (D*len(values))(*values)
@@ -12,14 +13,17 @@ def routine(source,name):
     return re.search(r'^      subroutine '+name+r'\b.*?^      end\s*$',source,re.M|re.S).group()
 
 def load_cpu():
-    build=ROOT/'build'/'tests'; build.mkdir(parents=True,exist_ok=True)
+    selected=Path(os.environ.get('MERCURY_TEST_BUILD',str(ROOT/'build')))
+    build=selected/'tests'; build.mkdir(parents=True,exist_ok=True)
     source=(ROOT/'mercury6_2.for').read_text()
     text='\n'.join(routine(source,name) for name in
                   ['mfo_all','mfo_grav','mfo_obl','mfo_ngf','mfo_pr','mfo_pn','mfo_user'])
     text+='\n'+routine((ROOT/'tests/fixtures/original_pr.for').read_text(),'mfo_pr').replace('subroutine mfo_pr','subroutine original_pr')+'\n'
     (build/'forces.for').write_text(text)
-    subprocess.run(['gfortran','-shared','-fPIC','-O2','-ffp-contract=off','-ffixed-line-length-none',
-                    '-I'+str(ROOT),'-I'+str(ROOT/'build'),'-J'+str(build),
+    flags=shlex.split(os.environ.get('MERCURY_TEST_FFLAGS',
+                     '-O2 -ffp-contract=off -ffixed-line-length-none'))
+    subprocess.run(['gfortran','-shared','-fPIC',*flags,
+                    '-I'+str(ROOT),'-I'+str(selected),'-J'+str(build),
                     str(ROOT/'mercury_support.f90'),str(build/'forces.for'),'-o',str(build/'forces.so')],check=True,capture_output=True)
     return C.CDLL(str(build/'forces.so'))
 
@@ -32,7 +36,7 @@ def load_gpu():
     for key in ['MAKEFLAGS','MFLAGS','MAKELEVEL']: env.pop(key,None)
     output=subprocess.check_output(['make','--no-print-directory','-s','--eval=print-cuda: ; @echo $(CUDA_LIB)','print-cuda'],cwd=ROOT,text=True,env=env).strip()
     if not output: return None
-    so=ROOT/'build/tests/cuda.so'; so.parent.mkdir(exist_ok=True)
+    so=obj.parent/'tests/cuda.so'; so.parent.mkdir(exist_ok=True)
     subprocess.run(['g++','-shared',str(obj),output,'-ldl','-lrt','-pthread','-o',str(so)],check=True,capture_output=True)
     lib=C.CDLL(str(so))
     if not lib.mercury_cuda_available(): return None

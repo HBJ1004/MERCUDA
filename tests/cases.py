@@ -20,15 +20,19 @@ def body(name="PARTICLE", mass=0.0, a=1.0, e=0.1, phase=0.0, **params):
 def prepare(path, small=None, big=None, *, epoch=0.0, start=0.0, stop=100.0,
             algorithm="BS", step=1.0, interval=7.3, tol=1e-12,
             pn=False, backend="cpu", collisions=False, user_force=False,
-            jcen=(0.0, 0.0, 0.0)):
+            jcen=(0.0, 0.0, 0.0), central_mass=1.0, rcen=.005, rmax=100.,
+            precision="high", stop_encounter=False, fragmentation=False,
+            time_units="days", relative_time=False, dump_interval=5000,
+            periodic_interval=100, changeover=3.0):
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     for name in ["message.in", "files.in"]:
         shutil.copyfile(ROOT/(name+".sample"), path/name)
-    values = [algorithm, start, stop, interval, step, tol, "no",
-              "yes" if collisions else "no", "no", "days", "no", "high",
-              "unused", "yes" if pn else "no", "yes" if user_force else "no", 100.0, 0.005, 1.0,
-              *jcen, "unused", "unused", 3.0, 5000, 100]
+    values = [algorithm, start, stop, interval, step, tol, "yes" if stop_encounter else "no",
+              "yes" if collisions else "no", "yes" if fragmentation else "no", time_units,
+              "yes" if relative_time else "no", precision,
+              "unused", "yes" if pn else "no", "yes" if user_force else "no", rmax, rcen, central_mass,
+              *jcen, "unused", "unused", changeover, dump_interval, periodic_interval]
     labels = [line.split("=")[0] for line in (ROOT/"param.in.sample").read_text().splitlines()
               if line and not line.startswith(")")][:26]
     (path/"param.in").write_text(
