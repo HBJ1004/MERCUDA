@@ -191,7 +191,14 @@ the literature they are based on.
 
 For backward integration, set the stop time earlier than the start time.
 With PR or Yarkovsky, reversing velocities is not a substitute for integrating
-backward. MVS and HYBRID write output on their integration timestep grid;
+backward. **Both effects can be included in backward runs using BS or RADAU:**
+keep the starting velocities, beta and A2 unchanged, and set an earlier stop time.
+For bound orbits, backward integration retraces the usual PR inward drift outward
+into the past and reverses the Yarkovsky drift (positive A2 inward, negative A2
+outward). This follows the assumed force model into the past; errors and uncertain
+force values can make long-term reconstruction less reliable.
+
+MVS and HYBRID write output on their integration timestep grid;
 a smaller output interval does not create intermediate states.
 
 Continue a run using its dump files as described in

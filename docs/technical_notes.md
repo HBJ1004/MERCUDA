@@ -193,7 +193,20 @@ Conservative backward/forward-reversed trajectories are checked numerically,
 not bit for bit. PR and Yarkovsky are velocity-dependent and do **not** obey the
 same velocity-reversal comparison with unchanged coefficients. Signed-time
 integration follows the supplied equations backward; drag then undoes its
-forward evolution and can amplify numerical errors.
+forward evolution and can amplify numerical errors. BS and RADAU support this on
+CPU and CUDA: use an earlier stop time with the same physical velocities, beta
+and A2. Do not negate these parameters to obtain a backward run.
+
+For bound orbits with positive beta, the PR contribution usually decreases
+semimajor axis forward in time, so its secular trend is traced outward into the
+past. The fitted Yarkovsky term has forward secular drift with the sign of A2
+([Farnocchia et al. 2013, equations 1–5](https://arxiv.org/html/1212.4812)); integrating
+those equations toward earlier times traces positive-A2 drift inward and
+negative-A2 drift outward. These describe the contributions of the added forces,
+not a guarantee that the total orbit changes monotonically when planetary
+perturbations or encounters are present. Recovering a trajectory under fixed
+coefficients is mathematically possible; it does not establish the actual past
+values of beta, spin, or thermal properties.
 
 New dumps retain A2/beta precision and record `force model version = 1`.
 Restarts read the dynamics from the dump files as Mercury traditionally does.
