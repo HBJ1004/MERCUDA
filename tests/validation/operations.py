@@ -327,6 +327,11 @@ def invalid(c):
     for key in ('a2','yar','a3'):
         obj = body(**{key:1e-10}); obj['v'] = [.01,0,0]
         specs.append(('undefined-'+key,dict(small=[obj]),None,'Undefined'))
+    for method in METHODS:
+        for backend in ('cpu','cuda'):
+            specs.append(('singular-'+method+'-'+backend,
+                          dict(big=[body('A',mass=1e-8),body('B',mass=1e-8)],small=[],algorithm=method,backend=backend),
+                          None,'coincident'))
     for profile in c.profiles:
         for name,settings,edit,expected in specs:
             c.record('invalid',profile.name+'/'+name,lambda settings=settings,edit=edit,expected=expected:

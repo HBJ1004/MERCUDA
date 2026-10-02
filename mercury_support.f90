@@ -20,6 +20,21 @@ contains
     error stop 1
   end subroutine
 
+  subroutine validate_separations(n,nbig,x,epochs)
+    integer, intent(in) :: n,nbig
+    real(8), intent(in) :: x(3,n)
+    real(8), intent(in), optional :: epochs(n)
+    integer :: i,j
+    do i=2,nbig
+      do j=i+1,n
+        if(present(epochs)) then
+          if(epochs(i)/=epochs(j)) cycle
+        endif
+        if(all(x(:,i)==x(:,j))) call fail('Nonfinite gravity: coincident interacting bodies')
+      enddo
+    enddo
+  end subroutine
+
   subroutine read_messages(unit,lengths,messages)
     integer, intent(in) :: unit
     integer, intent(out) :: lengths(:)

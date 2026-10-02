@@ -128,7 +128,7 @@ c
       subroutine mercury_main
       use mercury_gpu, only: gpu_select, gpu_free
       use mercury_support, only: accepted_steps, rejected_steps,
-     %  force_calls, step_seconds, event_seconds
+     %  force_calls, step_seconds, event_seconds, validate_separations
       implicit none
       include 'mercury.inc'
 c
@@ -177,6 +177,8 @@ c Use BS only to reach a non-grid initial epoch before a fixed-step run.
      %    mdt_bs1)
         opflag = -1
       end if
+c
+      call validate_separations (nbod,nbig,xh)
 c
 c Select backend after synchronization; the driver uploads the common epoch.
       open (23,file=outfile(3),status='old',access='append')
@@ -5955,7 +5957,7 @@ c
 c
       use mercury_support, only: read_extras, backend_override,
      %  force_model_version, register_name, fail, initial_step, lower,
-     %  ieee_is_finite, read_messages
+     %  ieee_is_finite, read_messages, validate_separations
       implicit none
       include 'mercury.inc'
 c
@@ -6353,6 +6355,8 @@ c
         goto 130
  140    close (11)
       end do
+c
+      call validate_separations (nbod,nbig,x,epoch)
 c
 c Version 1 dumps stored Yarkovsky in A2; migrate before force selection.
       if (oldflag.and.force_model_version.eq.1) then

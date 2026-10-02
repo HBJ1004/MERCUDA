@@ -98,3 +98,13 @@ class ValidationGuards(unittest.TestCase):
                 records=[r for r in (path/'ce.out').read_bytes().split(b'\n') if r.startswith(b'\x0c6b')]
                 self.assertGreater(len(records),0,method)
                 self.assertIn('Stopping integration due to an encounter', (path/'info.out').read_text())
+
+    def test_coincident_interacting_bodies_rejected_for_every_method(self):
+        for method in ('BS','BS2','RADAU','MVS','HYBRID'):
+            for backend in ('cpu','cuda'):
+                with tempfile.TemporaryDirectory() as tmp:
+                    path=prepare(tmp,big=[body('A',mass=1e-8),body('B',mass=1e-8)],small=[],
+                                 algorithm=method,backend=backend,stop=.125)
+                    result=run(path,check=False)
+                    self.assertGreater(result.returncode,0)
+                    self.assertIn('coincident interacting bodies',result.stderr)
