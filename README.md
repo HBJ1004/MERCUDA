@@ -1,10 +1,102 @@
+# MERCUDA
+
+MERCUDA extends John E. Chambers' MERCURY6 with CUDA implementations of BS,
+BS2, RADAU, MVS and HYBRID, extended forces, and CPU/GPU integration corrections.
+It keeps the usual Makefile, `.in` settings, and `mercury6`, `element6`, `close6`
+executables. CPU mode also includes changes; it is not identical to historical
+MERCURY6.
+
+Use [README_MERCUDA.md](README_MERCUDA.md) for the migration guide, build and
+backend selection, force models, compatibility and limitations. For standard
+MERCURY6 input formats, outputs, postprocessing and restart procedures, refer to
+the [inherited documentation below](#original-mercury6-documentation) and
+[original `mercury6.man`](mercury6.man). The MERCUDA guide describes the exceptions.
+
+## Benchmarks
+
+These measurements compare **identical Newtonian physics**, with PN, PR, A1/A2/A3
+and oblateness disabled. The example below uses eight planets and 100,000
+massless particles for 365 days; timings include startup and final output.
+
+![Runtime and endpoint accuracy](docs/images/speed_and_accuracy.png)
+
+| Algorithm | MERCURY6 CPU | MERCUDA CPU | MERCUDA CUDA | MERCURY6 / CUDA | MERCUDA CPU / CUDA | MERCURY6 error (AU) | CUDA error (AU) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| BS | 63.7 s | 12.6 s | 3.83 s | 16.63× | 3.28× | 8.27e-11 | 8.22e-11 |
+| BS2 | 59.9 s | 8.89 s | 3.57 s | 16.77× | 2.49× | 7.04e-12 | 6.6e-12 |
+| RADAU | 71.2 s | 20.1 s | 4.33 s | 16.45× | 4.65× | 5.2e-12 | 5.18e-12 |
+| MVS | 121 s | 70.8 s | 3.84 s | 31.58× | 18.42× | 1.31e-10 | 1.31e-10 |
+| HYBRID | 63.1 s | 8.25 s | 3.89 s | 16.19× | 2.12× | 5.41e-06 | 5.41e-06 |
+
+Errors are maximum absolute Cartesian endpoint differences against a converged
+REBOUND IAS15 reference, over eight planets and up to 64 sampled particles.
+All-particle CPU/CUDA comparisons were also checked. The plotted cases show
+similar accuracy, not a guarantee for every orbit or encounter. BS2's corrected
+error norm can change timesteps even at equal requested tolerance. Earlier tests
+found CPU MVS regressions in other configurations.
+
+The speedup over MERCURY6 includes CPU initialization improvements as well as
+CUDA acceleration; the CPU/CUDA column separates the backends more closely.
+Small/short runs can favor CPU. [Particle-count and duration plots](README_MERCUDA.md#benchmarks)
+show the dependence on workload.
+
+For a fair additional-force comparison, a separate **MERCURY6 + matched forces**
+baseline retains the original integrators/controllers but installs the same PN,
+PR and A2 equations and their input activation. Original unmodified MERCURY6's
+PN and PR routines are placeholders. With solar 1PN and particle beta=1e-4,
+A2=1e-12 AU/day² in the same 100,000-particle, 365-day case:
+
+| Algorithm | MERCURY6 + matched forces | MERCUDA CPU | MERCUDA CUDA | Baseline / CUDA | Baseline / CUDA error (AU) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| BS | 78.8 s | 24.8 s | 5.47 s | 14.41× | 8.23e-11 / 8.23e-11 |
+| RADAU | 90.9 s | 33.4 s | 6.04 s | 15.06× | 5.21e-12 / 5.21e-12 |
+
+The force-enabled reference uses independent IAS15 stepping with the validated
+MERCUDA heliocentric force implementation. It tests integration accuracy under
+the same prescription, not an independent implementation of that prescription.
+PN, PR and A2 are enabled together; these timings do not isolate PN's cost.
+
+**Measurement scope:** RTX 4070 and one pinned i5-13600KF CPU thread, Linux/WSL,
+gfortran 13.3.0, CUDA 12.6; median of three fresh executions after one warmup.
+Adaptive tolerance 1e-11, fixed timestep one day, high precision, final-epoch
+output. Synthetic eight-planet system; particles start at perihelion with random
+azimuths, a=3.2–3.8 AU, e=0.01–0.05 (seed 1729). Scaling sweeps span
+0–100,000 particles and 32–3,650 days. These are stable-orbit benchmarks.
+
+MERCUDA was measured at [7e0084d](https://github.com/HBJ1004/MERCUDA/commit/7e0084de7af16fbaaa1b7d7d4c1cfc6717e668d3).
+Original [MERCURY6 source](https://github.com/smirik/mercury/tree/aee9e0f6b8e4d359a9ed3607ee12e34a2e2dafac)
+was changed only to raise NMAX from 2,000 to 100,010 for the Newtonian runs.
+The matched-force baseline additionally changes only MFO_PN, MFO_PR, MFO_NGF
+and MIO_IN (force equations, PN parsing and combined A2/PR activation).
+IAS15 tolerances 1e-13 and 1e-15 agreed within 2.57e-13 AU across the campaign.
+All 156 configuration aggregates completed, with identical endpoints across
+repeated executions of each configuration; the largest all-body CPU/CUDA
+position difference was 3.79e-11 AU. Selected final figures are included here;
+the local benchmark workspace, scripts and simulation artifacts remain ignored.
+
+## References
+
+Cite Chambers (1999) for calculations based on MERCURY6, and record the MERCUDA
+revision and force settings. Source comments identify the implemented models.
+
+- Chambers, J. E. (1999), [A hybrid symplectic integrator that permits close encounters between massive bodies](https://doi.org/10.1046/j.1365-8711.1999.02379.x), *MNRAS* **304**, 793–799. MERCURY6 and its hybrid method.
+- Will, C. M. (2014), [The Confrontation between General Relativity and Experiment](https://doi.org/10.12942/lrr-2014-4), *Living Reviews in Relativity* **17**, 4, equation 79. Implemented 1PN equation in the central-mass test-body limit (eta=0), with G and c restored.
+- Tamayo, D., Rein, H., Shi, P. & Hernandez, D. M. (2020), [REBOUNDx](https://doi.org/10.1093/mnras/stz2870), *MNRAS* **491**, 2885–2901, Appendix B. Central-mass 1PN approximation and more complete alternatives.
+- Burns, J. A., Lamy, P. L. & Soter, S. (1979), [Radiation forces on small particles in the solar system](https://doi.org/10.1016/0019-1035(79)90050-2), *Icarus* **40**, 1–48. Radiation pressure and PR physical background; MERCUDA preserves the supplied component-wise prescription, which differs from the standard vector formula.
+- Farnocchia, D. et al. (2013), [Near Earth Asteroids with measurable Yarkovsky effect](https://doi.org/10.1016/j.icarus.2013.02.004), *Icarus* **224**, 1–13. Empirical transverse acceleration, here with distance exponent 2.
+- Marsden, B. G., Sekanina, Z. & Yeomans, D. K. (1973), [Comets and nongravitational forces. V](https://doi.org/10.1086/111402), *AJ* **78**, 211–225. Retained A1/A3 cometary distance law; A2 has different semantics in MERCUDA.
+- Murray, C. D. & Dermott, S. F. (1999), [Solar System Dynamics](https://doi.org/10.1017/CBO9781139174817), Cambridge University Press. Newtonian planetary dynamics and central-body zonal harmonics J2/J4/J6.
+- Rein, H. & Spiegel, D. S. (2015), [IAS15: a fast, adaptive, high-order integrator for gravitational dynamics](https://doi.org/10.1093/mnras/stu2164), *MNRAS* **446**, 1424–1437. Independent stepping/reference integrator used in the accuracy benchmarks.
+
+## Original MERCURY6 documentation
+
 **Fortran NBody integrator**
 
 _This software was initially created by John E. Chambers. It is the NBody integrator based on Bulirsh-Stoer, Everhart and other methods. It can "out of box" integrate every system like Solar System, 3 body problem and so on. The configuration is really simple._
 
 *How to use*
 
-Build and run instructions for this version are in [README_gpu.md](README_gpu.md).
+Build and run instructions for this version are in [README_MERCUDA.md](README_MERCUDA.md).
 The inherited MERCURY6 manual is retained below; obsolete instructions have been
 removed or corrected. 
 
@@ -185,7 +277,7 @@ in older versions). Please take into account.
               sections for details).
 
            b) Build all three executables using the supplied Makefile: make
-              Build requirements are described in README_gpu.md.
+              Build requirements are described in README_MERCUDA.md.
 
            ------------------------------------------------------------------------------
 

@@ -69,6 +69,9 @@ __global__ void layout(int n,const double* src,double* dst,int components,int to
         else dst[components*j+k]=src[k*n+j];
     }
 }
+// Newtonian J2/J4/J6: Murray & Dermott (1999), Solar System Dynamics,
+// https://doi.org/10.1017/CBO9781139174817; matches Fortran mfo_obl.
+// Config stores Jn*Rcentral^n, not bare dimensionless Jn.
 __device__ void obl(Config c,const double r[3],double inv,double a[3]) {
     double inv2=inv*inv,u2=r[2]*r[2]*inv2,u4=u2*u2,u6=u4*u2;
     double j2=c.j2*inv2,j4=c.j4*inv2*inv2,j6=c.j6*inv2*inv2*inv2;
@@ -95,6 +98,8 @@ __global__ void indirect_force(Config c,const double* pos,const double* m,double
 
 __device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
     const double u[3],double rv,const double* m,const double* ng,double a[3],int* bad) {
+    // A1/A3 Marsden, Sekanina & Yeomans (1973), AJ 78, 211-225:
+    // https://doi.org/10.1086/111402; original cometary g(r) below.
     if(c.ngflag==1||c.ngflag==3) {
         double a1=ng[j],a2=ng[c.n+j],a3=ng[2*c.n+j];
         if((a1!=0||a3!=0)&&(r2<88.0||fabs(a1)>1e-7||fabs(a2)>1e-7||fabs(a3)>1e-7)) {
@@ -105,6 +110,10 @@ __device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
             if(a3!=0&&nn==0) { atomicExch(bad,1); return; }
             for(int k=0;k<3;k++) a[k]+=a1*g*inv*r[k]+(a3==0?0:a3*g/nn*normal[k]);
         }
+        // Empirical transverse A2 with distance exponent 2: Farnocchia
+        // et al. (2013), Icarus 224, 1-13; not a thermophysical model.
+        // https://doi.org/10.1016/j.icarus.2013.02.004
+        // a_Y = A2*(1 AU/r)^2*unit(v - (r.v)/r^2*r).
         if(a2!=0) {
             double t[3],norm2=0;
             for(int k=0;k<3;k++) { t[k]=u[k]-(rv/r2)*r[k]; norm2+=t[k]*t[k]; }
@@ -113,7 +122,12 @@ __device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
             for(int k=0;k<3;k++) a[k]+=f*t[k];
         }
     }
-    // The user's PR prescription is intentionally preserved, including Vt.
+    // Radiation pressure/PR background: Burns, Lamy & Soter (1979),
+    // Icarus 40, 1-48; https://doi.org/10.1016/0019-1035(79)90050-2.
+    // Standard vector force is beta*mu/r^2*((1-vr/c)*r_hat-v/c).
+    // Compatibility: match supplied mfo_pr exactly, NOT that standard
+    // formula: component-wise Vt, sw=0.3, C_PR default REAL, K2 and
+    // massless-only gating. Includes radiation pressure as well as drag.
     if((c.ngflag==2||c.ngflag==3)&&m[j]==0) {
         double radius=sqrt(r2),vr=rv/radius;
         double f=K2*ng[3*c.n+j]/(C_PR*radius*radius);
@@ -156,6 +170,14 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
         for(int k=0;k<3;k++) { u[k]=vel[k*c.n+j]; rv+=r[k]*u[k]; }
     }
     nongrav(c,j,r,r2,inv,u,rv,m,ng,a,bad);
+    // 1PN formula: Will (2014), Living Rev. Relativity 17, 4,
+    // Eq. (79), eta->0 with G,c restored; central-mass test-body limit.
+    // https://doi.org/10.12942/lrr-2014-4
+    // Approximation background: Tamayo, Rein, Shi & Hernandez (2020),
+    // MNRAS 491, 2885-2901, Appendix B; matches mfo_pn/mfo_grav.
+    // https://doi.org/10.1093/mnras/stz2870
+    // mu/(c^2*r^3)*((4*mu/r-v^2)*r + 4*(r.v)*v); heliocentric
+    // physical velocities, no planetary PN cross terms/spin/higher orders.
     if(PN) {
         double v2=u[0]*u[0]+u[1]*u[1]+u[2]*u[2];
         double f=c.mu*inv3/(C_PN*C_PN),radial=4.0*c.mu*inv-v2;

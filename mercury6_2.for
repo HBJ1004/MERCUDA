@@ -4615,6 +4615,13 @@ c Direct terms
       end do
 c
 c Indirect terms (add these on last to reduce roundoff error)
+c PN branch: central-mass 1PN, same formula as MFO_PN below.
+c Formula: Will (2014), Living Rev. Relativity 17, 4, Eq. (79),
+c eta->0 limit; restore G,c. https://doi.org/10.12942/lrr-2014-4
+c Reference: Tamayo, Rein, Shi & Hernandez (2020), MNRAS 491,
+c 2885-2901, Appendix B; https://doi.org/10.1093/mnras/stz2870
+c a_PN = mu/(c^2*r^3)*[(4*mu/r-v^2)*rvec+4*(rvec.v)*vvec].
+c Heliocentric physical velocities; neglect planetary PN cross terms.
       if (pn.eq.0) then
       do i = 2, nbod
         tmp1 = m(1) * r3(i)
@@ -5044,7 +5051,15 @@ c arrays X, V with the format (x,y,z) and (vx,vy,vz) for each object in
 c succession. The accelerations are stored in the array A (ax,ay,az). The
 c non-gravitational accelerations follow a force law described by Marsden
 c et al. (1973) Astron. J. 211-225, with magnitude determined by the
-c parameters NGF(1,3). NGF(2) is the Yarkovsky transverse A2,
+c parameters NGF(1,3).
+c A1/A3 reference: Marsden, Sekanina & Yeomans (1973), AJ 78,
+c 211-225; https://doi.org/10.1086/111402
+c g(r)=0.111262*q^(-2.15)*(1+q^5.093)^(-4.6142), q=r/2.808 AU.
+c A2 reference: Farnocchia et al. (2013), Icarus 224, 1-13,
+c https://doi.org/10.1016/j.icarus.2013.02.004 (transverse model).
+c Here distance exponent d=2: a_Y=A2*(1 AU/r)^2*t_hat,
+c t_hat=unit(v-(rvec.v)/r^2*rvec). Empirical, not thermophysical.
+c NGF(2) is the Yarkovsky transverse A2,
 c in AU/day^2 at 1 AU, with an inverse-square distance law.
 c
 c N.B. All coordinates and velocities must be with respect to central body!!!!
@@ -5137,6 +5152,10 @@ c
 c Calculates barycentric accelerations of NBOD bodies due to oblateness of
 c the central body. Also returns the corresponding barycentric acceleration
 c of the central body.
+c Reference for Newtonian zonal harmonics: Murray & Dermott (1999),
+c Solar System Dynamics; https://doi.org/10.1017/CBO9781139174817
+c Retains Chambers' J2/J4/J6 acceleration and central-body reaction.
+c JCEN stores J2*Rcen^2, J4*Rcen^4, J6*Rcen^6 (not bare Jn).
 c
 c N.B. All coordinates must be with respect to the central body!!!!
 c ===
@@ -5206,10 +5225,15 @@ c%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c
 c Author: John E. Chambers
 c
-c ****** To be completed at a later date ******
-c
 c Added by Hangbin Jo
 c Replaced by central-mass Cartesian Schwarzschild 1PN (model version 1).
+c Formula: Will (2014), Living Rev. Relativity 17, 4, Eq. (79),
+c eta->0 limit; restore G,c. https://doi.org/10.12942/lrr-2014-4
+c Reference: Tamayo, Rein, Shi & Hernandez (2020), MNRAS 491,
+c 2885-2901, Appendix B; https://doi.org/10.1093/mnras/stz2870
+c a_PN = mu/(c^2*r^3)*[(4*mu/r-v^2)*rvec+4*(rvec.v)*vvec].
+c mu=G*Mcentral; heliocentric physical position and velocity.
+c Same equation is fused into MFO_GRAV for ordinary CPU force calls.
 c This omits planetary PN cross terms, spin, and higher PN orders.
 c Calculates post-Newtonian relativistic corrective accelerations for a set
 c of NBOD bodies (NBIG of which are Big).
@@ -5250,10 +5274,16 @@ c%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c
 c Author: John E. Chambers
 c
-c ****** To be completed at a later date ******
-c
 c Calculates radiation pressure and Poynting-Robertson drag for a set
 c of NBOD bodies (NBIG of which are Big).
+c Physical background: Burns, Lamy & Soter (1979), Icarus 40, 1-48,
+c https://doi.org/10.1016/0019-1035(79)90050-2
+c Standard radiation force: beta*mu/r^2*[(1-vr/c)*r_hat-v/c].
+c Compatibility note: this supplied routine is NOT that literal formula.
+c It retains component-wise Vt(k)=v(k)*(1-x(k)/r), sw=0.3,
+c c=173.1 (default REAL), K2 solar normalization, and massless gating.
+c Its acceleration includes radiation pressure as well as drag.
+c The subroutine itself is byte-for-byte preserved from the supplied code.
 c
 c This routine should not be called from the symplectic algorithm MAL_MVS
 c or the conservative Bulirsch-Stoer algorithm MAL_BS2.
