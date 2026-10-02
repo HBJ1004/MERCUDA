@@ -14,7 +14,7 @@ from scenarios import METHODS, COUNTS, tilted, reject, accuracy, checked_referen
 
 def replace_setting(path,pattern,value,file='param.in'):
     text = (path/file).read_text()
-    updated,count = re.subn(r'('+pattern+r'.*?=)\s*[^\n]+',lambda m:m[1]+' '+str(value),text,flags=re.I)
+    updated,count = re.subn(r'(^[ \t]*'+pattern+r'.*?=)\s*[^\n]+',lambda m:m[1]+' '+str(value),text,flags=re.I|re.M)
     if count != 1: raise AssertionError(f'Setting {pattern} matched {count} rows')
     (path/file).write_text(updated)
 

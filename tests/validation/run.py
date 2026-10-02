@@ -241,7 +241,8 @@ def main():
                 campaign.record('quick',profile.name,lambda p=profile:campaign.quick(p))
             campaign.completed_groups.add('quick')
         from scenarios import execute
-        for group in sorted(selected-{'build','quick'}):
+        order = (['workflow'] if 'workflow' in selected else [])+sorted(selected-{'build','quick','workflow'})
+        for group in order:
             print('Running '+group,flush=True)
             execute(campaign,group)
             campaign.completed_groups.add(group); campaign.save()
