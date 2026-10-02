@@ -39,6 +39,28 @@ class Forces(unittest.TestCase):
         self.cpu.mfo_pn_(C.byref(n),C.byref(n),arr(m),arr(x),arr([-k for k in v]),a2)
         self.assertEqual(bytes(a),bytes(a2))
 
+    def test_exact_parabolic_mean_anomaly(self):
+        # D=+/-1 gives x=0, y=+/-1 and Barker mean D+D^3/3.
+        for sign in (-1,1):
+            for name in ('mco_x2el_','element_x2el_'):
+                values=[D(x) for x in [1,0,sign,0,-sign,1,0]+[0]*6]
+                getattr(self.cpu,name)(*[C.byref(x) for x in values])
+                self.assertEqual(values[7].value,.5)
+                self.assertEqual(values[8].value,1.)
+                self.assertAlmostEqual(values[-1].value,sign*4/3,places=14)
+
+    def test_hyperbolic_mean_anomaly_is_unbounded(self):
+        e=1.2; axis=2.5
+        for anomaly in (-3.,3.):
+            den=e*math.cosh(anomaly)-1
+            inputs=[1,axis*(e-math.cosh(anomaly)),axis*math.sqrt(e*e-1)*math.sinh(anomaly),0,
+                    -math.sqrt(1/axis)*math.sinh(anomaly)/den,
+                    math.sqrt(1/axis)*math.sqrt(e*e-1)*math.cosh(anomaly)/den,0]
+            for name in ('mco_x2el_','element_x2el_'):
+                values=[D(x) for x in inputs+[0]*6]
+                getattr(self.cpu,name)(*[C.byref(x) for x in values])
+                self.assertAlmostEqual(values[-1].value,e*math.sinh(anomaly)-anomaly,delta=1e-12)
+
     def test_yar_inverse_square_and_direction(self):
         # Includes beyond the cometary cutoff and a massive big body.
         for r in [1.,2.,20.]:

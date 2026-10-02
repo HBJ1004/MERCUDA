@@ -28,6 +28,8 @@ c
 c
       subroutine element_main
       use mercury_support, only: fail, read_messages
+      use, intrinsic :: ieee_arithmetic, only: ieee_value,
+     %  ieee_positive_inf
       implicit none
       include 'mercury.inc'
 c
@@ -369,7 +371,12 @@ c Convert to Keplerian orbital elements
             call mco_x2el (gm,el(10,k),el(11,k),el(12,k),el(13,k),
      %        el(14,k),el(15,k),el(8,k),el(2,k),el(3,k),el(7,k),
      %        el(5,k),el(6,k))
-            el(1,k) = el(8,k) / (1.d0 - el(2,k))
+            if (el(2,k).eq.1.d0) then
+c Parabolic semi-major axis/aphelion are infinite, not a divide by zero.
+              el(1,k) = ieee_value(el(8,k),ieee_positive_inf)
+            else
+              el(1,k) = el(8,k) / (1.d0 - el(2,k))
+            end if
             el(9,k) = el(1,k) * (1.d0 + el(2,k))
             el(4,k) = mod(el(7,k) - el(5,k) + TWOPI, TWOPI)
 c Calculate true anomaly
@@ -1480,6 +1487,10 @@ c Mean anomaly for ellipse
           bige = acos(ce)
           if (rv.lt.0d0) bige = TWOPI - bige
           l = bige - e*sin(bige)
+        else if (e.eq.1d0) then
+c Barker's parabolic mean anomaly, inverse of MCO_EL2X.
+          bige = rv / h
+          l = bige + bige*bige*bige / 3.d0
         else
 c
 c Mean anomaly for hyperbola

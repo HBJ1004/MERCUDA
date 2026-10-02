@@ -120,3 +120,21 @@ def secular_forces(c):
                         return {'relative_drift_error':float(discrepancy),'axis_change_au':float(axis-1),
                                 'expected_change_au':expected,'direction':direction,'coefficient':coefficient}
                     c.record('scientific',f'{profile.name}/{method}/Yarkovsky/{direction}/{sign}',drift)
+
+
+def exact_parabolic(c):
+    for profile in c.profiles:
+        for method in METHODS:
+            for preparation in (-.125,0.,.125):
+                for direction in (-1,1):
+                    def check():
+                        profile.select()
+                        stop=preparation+direction*.125
+                        with tempfile.TemporaryDirectory() as tmp:
+                            path=prepare(tmp,small=[],central_mass=1/MU,algorithm=method,start=preparation,stop=stop,
+                                         interval=.125,step=.125/16,tol=1e-13,backend='cuda' if profile.cuda else 'cpu')
+                            (path/'small.in').write_text(')O+_06\n style = Cometary\n EXACT m=0 ep=0\n .5 1 0 0 0 0 0 0 0\n')
+                            run(path)
+                            initial=dict(x=[.5,0,0],v=[0,2,0])
+                            return accuracy(dump(path),{'EXACT':oracle.kepler(initial,stop,1.)},mu=1.)
+                    c.record('formats',f'{profile.name}/{method}/exact-parabolic/{preparation}/{direction}',check)

@@ -1295,7 +1295,7 @@ c
         gm = m(1) + m(j)
         call mco_x2a (gm,x(1,j),x(2,j),x(3,j),v(1,j),v(2,j),v(3,j),a(j),
      %    r,v2)
-c If orbit is hyperbolic, use the distance rather than the semi-major axis
+c If orbit is unbound (including a parabola), use the current distance
         if (a(j).le.0d0) a(j) = r
         hill(j) = a(j) * (THIRD * m(j) / m(1))**THIRD
       end do
@@ -3013,7 +3013,13 @@ c------------------------------------------------------------------------------
 c
       r  = sqrt(x * x  +  y * y  +  z * z)
       v2 =      u * u  +  v * v  +  w * w
-      a  = gm * r / (2.d0 * gm  -  r * v2)
+c An exact parabola has no finite semi-major axis. A=0 marks it as
+c unbound for the sole caller, MCE_HILL, which uses the current radius.
+      if (2.d0*gm.eq.r*v2) then
+        a = 0.d0
+      else
+        a = gm * r / (2.d0 * gm - r * v2)
+      end if
 c
 c------------------------------------------------------------------------------
 c
@@ -3162,6 +3168,10 @@ c Mean anomaly for ellipse
           bige = acos(ce)
           if (rv.lt.0d0) bige = TWOPI - bige
           l = bige - e*sin(bige)
+        else if (e.eq.1d0) then
+c Barker's parabolic mean anomaly, inverse of MCO_EL2X.
+          bige = rv / h
+          l = bige + bige*bige*bige / 3.d0
         else
 c
 c Mean anomaly for hyperbola
@@ -3180,8 +3190,8 @@ c Longitude of perihelion
         p = mod (p + TWOPI + TWOPI, TWOPI)
       end if
 c
-      if (l.lt.0d0) l = l + TWOPI
-      if (l.gt.TWOPI) l = mod (l, TWOPI)
+      if (l.lt.0d0.and.e.lt.1d0) l = l + TWOPI
+      if (l.gt.TWOPI.and.e.lt.1d0) l = mod (l, TWOPI)
 c
 c------------------------------------------------------------------------------
 c

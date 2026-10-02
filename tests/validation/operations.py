@@ -74,8 +74,9 @@ def workflow(c):
 
 
 def formats(c):
-    from extended import massive_formats
+    from extended import massive_formats, exact_parabolic
     massive_formats(c)
+    exact_parabolic(c)
     for profile in c.profiles:
         for central in (1.,.01,3e-6):
             for e in (0.,.2,.9,1.,1.2):
@@ -359,6 +360,7 @@ def stress(c):
                 c.record('stress',f'{profile.name}/{method}/{count}',check,method=method,count=count)
     # Several hundred massive bodies exercise prefixes and reduction tails.
     big = [tilted(body('B'+str(j),mass=1e-12,a=1+j*.01,phase=j*.37)) for j in range(257)]
+    big[-1]['mass']=.001  # A missed reduction tail must exceed the accuracy bound.
     refs,floor = checked_reference(big,[],[.125])
     for profile in c.profiles:
         for method in METHODS:

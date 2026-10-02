@@ -277,3 +277,12 @@ literature. Source comments cite the equations at their implementations.
 
 See [Testing MERCUDA](validation.md) for the independent reference models,
 acceptance bounds, configuration coverage and commands for reproducing checks.
+
+## Parabolic orbits
+
+Cometary input with `e=1` uses Barker's equation. An exactly zero-energy orbit
+uses its current distance for the encounter scale, as other unbound orbits do.
+The Cartesian-to-elements conversion uses the matching Barker mean anomaly.
+For an exact parabola, `element6` reports the semi-major axis and aphelion as
+`Infinity`; Cartesian coordinates remain finite. These quantities have no
+finite value for a parabolic orbit.

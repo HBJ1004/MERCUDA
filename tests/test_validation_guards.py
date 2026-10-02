@@ -108,3 +108,18 @@ class ValidationGuards(unittest.TestCase):
                     result=run(path,check=False)
                     self.assertGreater(result.returncode,0)
                     self.assertIn('coincident interacting bodies',result.stderr)
+
+    def test_exact_parabola_encounter_radius(self):
+        # Choosing GM=1 makes the zero-energy boundary exact in binary64.
+        for method in ('BS','BS2','RADAU','MVS','HYBRID'):
+            with tempfile.TemporaryDirectory() as tmp:
+                path=prepare(tmp,small=[],central_mass=1/MU,algorithm=method,stop=.125,
+                             interval=.125,step=.125/16,tol=1e-13)
+                (path/'small.in').write_text(')O+_06\n style = Cometary\n EXACT m=0\n .5 1 0 0 0 0 0 0 0\n')
+                run(path); state=dump(path)['EXACT']
+                mean=2*.125; d=mean
+                for _ in range(12): d-=(d+d**3/3-mean)/(1+d*d)
+                speed=2/(1+d*d)
+                truth=[.5*(1-d*d),d,0,-d*speed,speed,0]
+                for got,expected in zip(state['x']+state['v'],truth):
+                    self.assertAlmostEqual(got,expected,delta=1e-11)

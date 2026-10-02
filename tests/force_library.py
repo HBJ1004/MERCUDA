@@ -17,7 +17,8 @@ def load_cpu():
     build=selected/'tests'; build.mkdir(parents=True,exist_ok=True)
     source=(ROOT/'mercury6_2.for').read_text()
     text='\n'.join(routine(source,name) for name in
-                  ['mfo_all','mfo_grav','mfo_obl','mfo_ngf','mfo_pr','mfo_pn','mfo_user'])
+                  ['mfo_all','mfo_grav','mfo_obl','mfo_ngf','mfo_pr','mfo_pn','mfo_user','mco_x2el'])
+    text+='\n'+routine((ROOT/'element6.for').read_text(),'mco_x2el').replace('subroutine mco_x2el','subroutine element_x2el')+'\n'
     text+='\n'+routine((ROOT/'tests/fixtures/original_pr.for').read_text(),'mfo_pr').replace('subroutine mfo_pr','subroutine original_pr')+'\n'
     (build/'forces.for').write_text(text)
     flags=shlex.split(os.environ.get('MERCURY_TEST_FFLAGS',

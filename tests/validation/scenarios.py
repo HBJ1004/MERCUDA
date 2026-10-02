@@ -74,6 +74,26 @@ def checked_reference(big,small,times,**options):
     return fine,error
 
 
+def force_measurement(cpu,gpu,masses,positions,velocities,ng,jcen,nbig,pn,expected,scale):
+    n=len(masses)
+    flat=lambda rows:[z for row in rows for z in row]
+    flag=(1 if any(row[k] for row in ng for k in (0,1,2,4)) else 0)+(2 if any(row[3] for row in ng) else 0)
+    actual=np.array(cpu_force(cpu,masses,flat(positions),flat(velocities),flat(ng),jcen,nbig,pn,flag)).reshape(n,3)
+    ratio=np.max(np.abs(actual[1:]-expected[1:])/(1e-12*scale[1:]+1e-30))
+    metrics={'cpu_bound_fraction':float(ratio)}
+    if ratio>1: raise AssertionError('CPU independent force bound exceeded: '+str(ratio))
+    if gpu:
+        rc=arr([.001]*n); output=arr([0.]*(3*n))
+        assert gpu.mercury_cuda_upload(n,nbig,int(pn),flag,arr(masses),arr(flat(positions)),
+                   arr(flat(velocities)),arr(flat(ng)),arr(jcen),rc,rc)==0
+        assert gpu.mercury_cuda_force(output)==0
+        device=np.array(list(output)).reshape(n,3)
+        ratio=np.max(np.abs(device[1:]-expected[1:])/(1e-12*scale[1:]+1e-30))
+        metrics['cuda_bound_fraction']=float(ratio)
+        if ratio>1: raise AssertionError('CUDA independent force bound exceeded: '+str(ratio))
+    return metrics
+
+
 def force_values(c):
     rng = random.Random(1729)
     n = 7; nbig = 3
@@ -88,27 +108,27 @@ def force_values(c):
         params = small[0]['params']; ng = [[0.]*5]+[[params.get(key,0)*(-1 if j%2 else 1)
                   for key in ('a1','a2','a3','b','yar')] for j in range(1,n)]
         expected,scale = oracle.high_precision_force(masses,positions,velocities,ng,options['jcen'],nbig,options['pn'])
-        flat = lambda rows:[z for row in rows for z in row]
-        flag = (1 if any(params.get(k,0) for k in ('a1','a2','a3','yar')) else 0)+(2 if params.get('b',0) else 0)
         for profile in c.profiles:
-            cpu,gpu = libraries[profile.name]
+            cpu,gpu=libraries[profile.name]
             def check(cpu=cpu,gpu=gpu):
-                actual = np.array(cpu_force(cpu,masses,flat(positions),flat(velocities),flat(ng),
-                        options['jcen'],nbig,options['pn'],flag)).reshape(n,3)
-                ratio = np.max(np.abs(actual[1:]-expected[1:])/(1e-12*scale[1:]+1e-30))
-                metrics = {'cpu_bound_fraction':float(ratio)}
-                if ratio > 1: raise AssertionError('CPU independent force bound exceeded: '+str(ratio))
-                if gpu:
-                    rc = arr([.001]*n); output = arr([0.]*(3*n))
-                    assert gpu.mercury_cuda_upload(n,nbig,int(options['pn']),flag,arr(masses),arr(flat(positions)),
-                           arr(flat(velocities)),arr(flat(ng)),arr(options['jcen']),rc,rc) == 0
-                    assert gpu.mercury_cuda_force(output) == 0
-                    device = np.array(list(output)).reshape(n,3)
-                    ratio = np.max(np.abs(device[1:]-expected[1:])/(1e-12*scale[1:]+1e-30))
-                    metrics['cuda_bound_fraction'] = float(ratio)
-                    if ratio > 1: raise AssertionError('CUDA independent force bound exceeded: '+str(ratio))
-                return metrics
+                return force_measurement(cpu,gpu,masses,positions,velocities,ng,options['jcen'],
+                                         nbig,options['pn'],expected,scale)
             c.record('force-values',f'{profile.name}/mask-{mask:03d}',check,mask=mask)
+    # Make the reduction tail physically significant, not just allocated.
+    n=513; nbig=258; rng=random.Random(8128)
+    masses=[MU]+[1e-9*MU]*257+[1e-7*MU]*9+[0.]*(n-267)
+    masses[257]=.003*MU
+    positions=[[0.,0.,0.]]+[[rng.uniform(-4,4) for _ in range(3)] for _ in range(n-1)]
+    velocities=[[0.,0.,0.]]+[[rng.uniform(-.03,.03) for _ in range(3)] for _ in range(n-1)]
+    ng=[[0.]*5]+[[1e-11,-2e-11,3e-11,.001,-4e-11] for _ in range(n-1)]
+    jcen=(.1,-.01,.001)
+    expected,scale=oracle.high_precision_force(masses,positions,velocities,ng,jcen,nbig,True)
+    for profile in c.profiles:
+        cpu,gpu=libraries[profile.name]
+        c.record('force-values',profile.name+'/massive-reduction-tail',
+                 lambda cpu=cpu,gpu=gpu:force_measurement(cpu,gpu,masses,positions,velocities,ng,jcen,
+                                                         nbig,True,expected,scale),
+                 bodies=n,massive=267,dominant_mass_index=257)
     for _,gpu in libraries.values():
         if gpu: gpu.mercury_cuda_free()
 
