@@ -669,7 +669,8 @@ c Rotation factors
       d23 = cg * si
 c
 c Semi-major axis
-      a = q / (1.d0 - e)
+      a = 0.d0
+      if (e.ne.1.d0) a = q / (1.d0 - e)
 c
 c Ellipse
       if (e.lt.1.d0) then
@@ -2152,4 +2153,3 @@ c...  Executable code
 	
 	return
 	end    ! orbel_zget
-

@@ -2276,7 +2276,8 @@ c Rotation factors
       d23 = cg * si
 c
 c Semi-major axis
-      a = q / (1.d0 - e)
+      a = 0.d0
+      if (e.ne.1.d0) a = q / (1.d0 - e)
 c
 c Ellipse
       if (e.lt.1.d0) then
@@ -4561,6 +4562,7 @@ c------------------------------------------------------------------------------
 c
       subroutine mfo_grav (nbod,nbig,m,x,v,a,stat,pn)
 c
+      use mercury_support, only: fail
       implicit none
       include 'mercury.inc'
 c
@@ -4583,6 +4585,8 @@ c
         a(2,i) = 0.d0
         a(3,i) = 0.d0
         s2 = x(1,i)*x(1,i) + x(2,i)*x(2,i) + x(3,i)*x(3,i)
+        if (s2.le.0.d0)
+     %    call fail ('Nonfinite gravity: body at central origin')
         s_1  = 1.d0 / sqrt(s2)
         ri(i) = s_1
         r3(i) = s_1 * s_1 * s_1
@@ -4602,6 +4606,8 @@ c Direct terms
           dy = x(2,j) - x(2,i)
           dz = x(3,j) - x(3,i)
           s2 = dx*dx + dy*dy + dz*dz
+          if (s2.le.0.d0)
+     %      call fail ('Nonfinite gravity: coincident bodies')
           s_1 = 1.d0 / sqrt(s2)
           s_3 = s_1 * s_1 * s_1
           tmp1 = s_3 * m(i)
@@ -5999,7 +6005,7 @@ c Read in output messages
       if (.not.test) then
         write (*,'(/,2a)') ' ERROR: This file is needed to start',
      %    ' the integration:  message.in'
-        stop
+        call fail ('Missing message.in')
       end if
       open (16, file='message.in', status='old')
   10  read (16,'(i3,1x,i2,1x,a80)',end=20) j,lmem(j),mem(j)
@@ -6314,12 +6320,23 @@ c
 c Alternatively, read Cometary or asteroidal elements
           if (informat.eq.3) then
             q = a
-            a = q / (1.d0 - e)
-            l = mod (sqrt(temp/(abs(a*a*a))) * (epoch(nbod) - l), TWOPI)
+            if (q.le.0.d0.or.e.lt.0.d0)
+     %        call fail ('Invalid cometary orbital elements')
+            if (e.eq.1.d0) then
+c Barker's equation: l = tan(f/2) + tan(f/2)^3/3.
+              l = sqrt(.5d0*temp/(q*q*q))*(epoch(nbod)-l)
+            else
+              a = q / (1.d0 - e)
+              l = sqrt(temp/(abs(a*a*a)))*(epoch(nbod)-l)
+c Hyperbolic mean anomaly is unbounded; only ellipses are periodic.
+              if (e.lt.1.d0) l = mod(l,TWOPI)
+            end if
           else
             q = a * (1.d0 - e)
             l = l * DR
           end if
+          if (q.le.0.d0.or.e.lt.0.d0)
+     %      call fail ('Invalid orbital elements')
           if (algor.eq.11.and.nbod.ne.2) temp = temp + m(2)
           call mco_el2x (temp,q,e,i,p,n,l,x(1,nbod),x(2,nbod),x(3,nbod),
      %      v(1,nbod),v(2,nbod),v(3,nbod))

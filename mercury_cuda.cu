@@ -1,4 +1,5 @@
 #include "mercury_cuda.h"
+#include "mercury_cuda_memory.h"
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cmath>
@@ -391,7 +392,7 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
             if(size_t(n)*(algorithm==2?800:1100)>free_bytes*8/10) throw std::runtime_error("Insufficient device workspace memory");
             for(double** p:{&x,&v,&oldx,&oldv,&wx,&wv,&ex,&ev,&acc,&acc0}) allocate(*p,size_t(3)*n);
             allocate(table,size_t(algorithm==3?72:algorithm==4?63:48)*n); allocate(scale,size_t(2)*n);
-            allocate(mass,n); allocate(ngf,size_t(5)*n); allocate(rce,n); allocate(rphys,n);
+            allocate(mass,n); allocate(ngf,MercuryForceComponents*n); allocate(rce,n); allocate(rphys,n);
             allocate(boxes,size_t(4)*n); allocate(transfer,size_t(6)*n);
             allocate(partial,blocks(n)); allocate(maximum,1); allocate(indirect,3);
             allocate(fault,1); allocate(event_count,1); reserve_events(4096);
@@ -406,7 +407,7 @@ extern "C" int mercury_cuda_upload(int n,int nbig,int pn,int ngflag,const double
         check(cudaMemcpy(mass,m,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rce,limits,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
         check(cudaMemcpy(rphys,radii,size_t(n)*sizeof(double),cudaMemcpyHostToDevice));
-        upload_array(xx,x,3); upload_array(vv,v,3); upload_array(ng,ngf,5);
+        upload_array(xx,x,3); upload_array(vv,v,3); upload_array(ng,ngf,MercuryForceComponents);
         check(cudaMemset(fault,0,sizeof(int))); check(cudaDeviceSynchronize());
         return 0;
     } catch(const std::exception& e) { return error(e); }
@@ -583,7 +584,7 @@ extern "C" int mercury_cuda_encounter_enter(int n,int nb,const double* m,const d
     try {
         encounter_active=true; other_context.exchange();
         if(mercury_cuda_configure(3)) throw std::runtime_error("Encounter configure failed");
-        std::vector<double> zero(4*n,0); double jc[3]={0,0,0};
+        auto zero=mercury_zero_force_parameters(n); double jc[3]={0,0,0};
         if(mercury_cuda_upload(n,nb,0,0,m,xx,vv,zero.data(),jc,limits,radii)) throw std::runtime_error("Encounter upload failed");
         encounter_mode=true;
         check(cudaMemcpy(critical,crit,n*sizeof(double),cudaMemcpyHostToDevice));
