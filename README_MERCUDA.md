@@ -8,7 +8,7 @@ in `param.in`.
 
 This guide covers MERCUDA-specific behavior. For ordinary input formats,
 coordinate choices, timestep/tolerance selection, output extraction, and the
-standard restart workflow, use the [inherited MERCURY6 README](README.md#original-mercury6-documentation)
+standard restart workflow, use the [inherited MERCURY6 README](README_MERCURY6.md)
 and [original manual (`mercury6.man`)](mercury6.man), especially sections 2–7.
 Those historical documents describe MERCURY6; the differences below take
 precedence where they disagree, including compilation, PN, A2, and restarts.
@@ -340,42 +340,18 @@ with Fortran bounds and runtime checks in a separate build directory.
 
 ## Benchmarks
 
-The [repository front page](README.md#benchmarks) presents the speed/accuracy
-comparison and a controlled comparison with the same PN, PR and A2 equations.
-The figures below show how total runtime changes with particle count and duration.
-They use identical initial states between implementations at each configuration.
-
-![Runtime by particle count](docs/images/runtime_vs_particles.png)
-
-Eight planets and 0–100,000 massless particles, integrated for 32 days.
-
-![Runtime by integration duration](docs/images/runtime_vs_duration.png)
-
-Eight planets and 4,096 massless particles, integrated for 32–3,650 days.
-
-![Runtime and accuracy with identical additional forces](docs/images/matched_forces.png)
-
-100,000 massless particles plus eight planets for 365 days, with identical solar
-1PN, beta=1e-4 and A2=1e-12 AU/day². The patched MERCURY6 baseline retains its
-original integration controllers; the IAS15 reference shares the validated
-heliocentric force implementation, so this checks integration accuracy rather
-than providing an independent derivation of the forces.
-
-Selected final figures are published for the documentation. The complete local
-`benchmarks/` workspace remains gitignored; scripts, reference builds, simulation
-files and other nonessential artifacts are not part of the package. Speed depends
-on hardware, algorithm, population, encounters and output cadence. Startup can
-dominate short runs. These stable-orbit measurements do not establish universal
-accuracy equivalence, and earlier testing found CPU MVS regressions in some other
-configurations. Check convergence for your intended problem.
+See the [benchmark report](docs/benchmarks.md) for runtime and accuracy tables,
+particle-count and duration plots, matched-force comparisons, measurement
+settings and limitations. The local `benchmarks/` workspace remains gitignored;
+only selected final figures are published with the documentation.
 
 ## References
 
 Please cite [Chambers (1999)](https://doi.org/10.1046/j.1365-8711.1999.02379.x)
 when publishing calculations based on MERCURY6/MERCUDA, and identify the MERCUDA
-revision and force settings used. The [front-page reference list](README.md#references)
-links the PN, radiation/PR, Yarkovsky, cometary and oblateness sources, as well as
-the IAS15 accuracy reference. Formula comments in `mercury6_2.for` and
-`mercury_cuda.cu` distinguish the preserved PR implementation from the standard
-radiation-force formula. Other inherited algorithm references remain in the
-[original documentation](mercury6.man) and source headers.
+revision and force settings. The [reference list](docs/references.md) covers PN,
+radiation/PR, Yarkovsky, cometary forces, oblateness and the IAS15 benchmark
+reference. Formula comments in `mercury6_2.for` and `mercury_cuda.cu` identify the
+models and distinguish the preserved PR prescription from the standard vector
+formula. Inherited algorithm references remain in the
+[original manual](mercury6.man) and source headers.
