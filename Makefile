@@ -59,15 +59,17 @@ $(BIN)/mercury6: $(BUILD)/mercury6.o $(SUPPORT) $(GPU_SUPPORT) $(GPU_OBJECT) FOR
 $(BIN)/element6: element6.for $(FDEPENDS) $(SUPPORT)
 	mkdir -p $(dir $@)
 	$(FC) $(FFLAGS) -I$(BUILD) -o $@ $< $(SUPPORT)
-$(BIN)/close6: close6.for $(FDEPENDS) $(SUPPORT)
+$(BUILD)/mercury_close.o: mercury_close.f90 $(SUPPORT)
+	$(FC) $(FFLAGS) -J$(BUILD) -I$(BUILD) -ffree-line-length-none -c $< -o $@
+$(BIN)/close6: close6.for $(FDEPENDS) $(SUPPORT) $(BUILD)/mercury_close.o
 	mkdir -p $(dir $@)
-	$(FC) $(FFLAGS) -I$(BUILD) -o $@ $< $(SUPPORT)
+	$(FC) $(FFLAGS) -I$(BUILD) -o $@ $< $(SUPPORT) $(BUILD)/mercury_close.o
 cpu:
 	$(MAKE) CUDA=0 build
 test: build
 	MERCURY_TEST_BIN=$(abspath $(BIN)) MERCURY_TEST_BUILD=$(abspath $(BUILD)) MERCURY_TEST_CUDA=$(GPU_TEST) MERCURY_TEST_FFLAGS='$(FFLAGS)' $(PYTHON) -m unittest discover -s tests -p 'test_*.py' -v
 test-debug:
-	$(MAKE) BUILD=build/debug BIN=build/debug FFLAGS='-O0 -g -ffixed-line-length-none -ffp-contract=off -fcheck=all -fbacktrace' test
+	$(MAKE) BUILD=build/debug BIN=build/debug FFLAGS='-O0 -g -ffixed-line-length-none -ffp-contract=off -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow' test
 test-full:
 	$(VALIDATION_PYTHON) tests/validation/run.py --sanitizer '$(COMPUTE_SANITIZER)'
 test-full-cpu:
