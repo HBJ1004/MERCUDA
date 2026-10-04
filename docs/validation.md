@@ -102,6 +102,82 @@ must improve an error by at least a factor of two unless it is already within
 ten times the reference/roundoff floor. These bounds are fixed in the catalog;
 they are test acceptance criteria, not a universal accuracy guarantee.
 
+## Close6 validation
+
+The required `close6` group checks the actual numeric values in `.clo` files,
+not just whether the program finishes. Its reference uses an independent
+integer base-224 decoder and 80-digit decimal orbital invariants. A small
+fixture written by pinned original MERCURY6 checks compatibility with its writer.
+The reference starts from the compressed state; compression error is separate
+from postprocessor error. Encounter state fields use four base-224 digits even
+when the integration output precision setting is low or high.
+
+Coverage includes:
+
+- Circular, eccentric, near-parabolic, hyperbolic, radial and zero-velocity
+  states; different inclinations and masses; 256 fixed-seed random states.
+- Exact parabolic and radial states tested directly through the element helper,
+  including finite radial semimajor axes and undefined inclination.
+- All four time formats, different input-file origins, negative and large dates,
+  leap years and the Julian/Gregorian transition.
+- Selection, duplicate and absent selections, names and filename collisions,
+  existing outputs, line endings and complete records without a final newline.
+- 1, 2 and 50 input files, changing populations and remapped codes; 255, 256, 257
+  and 513 output files; old capacity boundaries and 100,000 input bodies with a
+  small selected subset. Allocating the full encoding limit is not claimed.
+- Invalid settings and records, stale body codes, and 256 fixed-seed mutations
+  per build profile. These must return a controlled error before creating outputs.
+- Files written by all five algorithms, both integration directions and all
+  three precision settings, including force-enabled BS/RADAU, HYBRID restarts,
+  mergers, central impacts and ejections. CPU/CUDA encounter states are compared
+  separately.
+- Numerical samples from the 4,100-encounter regression, with all row counts,
+  identities and order checked. Host AddressSanitizer/UBSan instruments the
+  actual reader, reporting helper and support code.
+
+For ordinary numeric output, acceptance is half the last printed unit plus
+64 floating-point units of the reference value. Scientific notation uses its
+own printed resolution. Direct helper bounds are `1e-12 * max(1,e)` for
+eccentricity, `1e-10` degrees for defined inclination in the direct test states,
+and `1e-12` for inverse semimajor axis multiplied by radius. Inclination is marked undefined when all
+angular-momentum components lie within a roundoff bound of 16 machine epsilons
+times the sum of their absolute products; a resolved small angular momentum
+remains defined. Near zero energy, inverse semimajor axis
+avoids an ill-conditioned comparison of enormous semimajor axes. The report
+records errors with their units. These checks do not promise that discarded
+compression digits can be recovered.
+
+`close6` can only decode encounters the integrator recorded. In particular,
+MVS cannot resolve close encounters, and HYBRID records encounters handled by
+its Bulirsch-Stoer subsystem. Read the
+[usage guide](../README_MERCUDA.md#reading-close-encounters) and
+[technical notes](technical_notes.md#close-encounter-output) for output behavior.
+
+## Close6 validation on 4 October 2026
+
+At revision [`ceaf09d`](https://github.com/HBJ1004/MERCUDA/commit/ceaf09dabe09840bac2535b90c11effeec037421),
+the complete CPU campaign passed **13,773 cases**, with **zero failures and
+zero incomplete checks**, using optimized and debug builds. This includes
+**785 close6 checks** and the full scientific and capacity groups.
+
+The combined CPU/CUDA campaign completed all **1,579 close6 checks**, using
+optimized and debug builds on both backends. Its 20 NVIDIA device-sanitizer
+checks and host encounter-buffer sanitizer check also passed. The hardware and
+compiler versions were the same as recorded for the 3 October campaign below.
+
+The combined campaign was stopped to avoid competing with the user's GPU work.
+Its report contains **26,240 passed cases, zero failures and one interruption**;
+the package-wide scientific and stress groups remain incomplete. This is a
+completed close6 validation, not a new complete GPU validation of the package.
+The separate CPU report is complete. Both reports record the clean source
+revision and source hashes; documentation was updated after testing.
+
+The tests exposed and fixed the legacy reader's mass-dependent velocity error,
+undefined orbital quantities on radial and parabolic paths, and unsafe handling
+of malformed records and capacity boundaries. The integrated force equations
+were unchanged. Counts include expected input rejections and named checks of
+multiple output rows.
+
 ## Validation completed on 3 October 2026
 
 The complete CPU campaign passed **12,988 validation cases** at revision

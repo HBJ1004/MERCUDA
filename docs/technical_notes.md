@@ -286,3 +286,45 @@ The Cartesian-to-elements conversion uses the matching Barker mean anomaly.
 For an exact parabola, `element6` reports the semi-major axis and aphelion as
 `Infinity`; Cartesian coordinates remain finite. These quantities have no
 finite value for a parabolic orbit.
+
+## Close-encounter output
+
+`close6` is a CPU postprocessor for the original MERCURY6 encounter format. Its
+validated reader is in `mercury_close.f90`; `close6.for` retains the original
+header format and historical conversion helpers. Integration and encounter
+recording are separate from this reader.
+
+The encounter writer normalizes velocities using the central mass only. The
+reader follows that convention, then uses the sum of central and body mass for
+the reported osculating Keplerian elements. This corrects the original reader's
+mass-dependent velocity error. The reported semimajor axis comes from energy;
+eccentricity and inclination come from orbital invariants, without calculating
+unused orbital angles. A radial orbit can have finite semimajor axis and
+`e=1`, with undefined inclination. `Infinity` marks zero energy at working
+precision; `NaN` marks undefined inclination, including angular momentum
+indistinguishable from zero within component-wise floating-point product bounds.
+These are reporting conventions, not changes to the integrated force model.
+
+Ordinary rows retain the original column order and fixed decimal formats:
+distance 8 decimal places in AU, semimajor axes 4 in AU, eccentricities 6, and
+inclinations 3 in degrees. Days use 5 decimal places; relative years use 7.
+An overflowing numeric field switches to `ES17.8E3`, making that row wider.
+Scripts should accept whitespace-separated fields, `Infinity` and `NaN`.
+Absolute years mean Julian/Gregorian calendar dates, with the transition on
+1582-10-15 and astronomical year numbering. Calendar output accepts decoded
+times within +/- 1e12 Julian days; larger values can use days or relative years.
+
+All files are checked before outputs are opened. Headers may change the active
+body population, codes and masses; each encounter must reference two active
+bodies. Storage grows as required, with hashed name lookup. Output files are
+processed in batches of at most 256. Duplicate selections are merged; duplicate
+names or codes within a header, and collisions between output filenames, are
+errors. Missing selected bodies produce header-only files.
+
+With multiple input files, rows follow file order and recorded encounter order;
+records are not sorted or deduplicated. Relative time now uses the first header's
+epoch in each file; the legacy reader retained the first file's origin. Later
+headers within that file do not change the origin.
+Existing outputs are warned about and skipped, as in the original program.
+See section 5 of [README_MERCURY6.md](../README_MERCURY6.md) for the input format
+and HYBRID recording limitation.

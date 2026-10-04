@@ -109,9 +109,43 @@ Then run:
 ```
 
 This produces `.aei` files for the selected bodies. Open one in a text editor to
-see its orbital elements. To examine close encounters, run `./close6`; encounters
-recorded during the run are written to `.clo` files. See sections 4–5 of the
-[MERCURY6 manual](README_MERCURY6.md) for selecting bodies and output columns.
+see its orbital elements. For close encounters, follow
+[Reading close encounters](#reading-close-encounters) below. See sections 4–5 of
+the [MERCURY6 manual](README_MERCURY6.md) for body selection and output columns.
+
+## Reading close encounters
+
+`close6` reads encounters recorded by `mercury6` and produces readable `.clo`
+files. It runs on the CPU and reads both CPU and GPU results. No new flags or
+GPU settings are needed.
+
+1. After integration finishes, keep `ce.out` and `message.in` in your run
+   directory. `make gen-in` creates `close.in` if it is missing.
+2. Open `close.in`. Keep its first line. Set the number of input files and list
+   their names, usually one file named `ce.out`.
+3. Choose days or years, and whether time is relative to the integration start.
+   Years with relative time set to `no` gives calendar dates.
+4. List the body names you want, one per line. Leave the list empty for all bodies.
+5. Run `./close6`. Each selected body gets a `.clo` file with the encounter time,
+   partner, minimum distance and both bodies' orbital elements. A file with only its header
+   means there are no matching recorded encounters.
+
+With several input files, relative time uses each file's start date. Choose
+absolute time when comparing dates across files.
+
+Existing `.clo` files are skipped with a warning. Move or remove those files
+before regenerating them; keep `ce.out`. If an input file is corrupt, `close6`
+stops with an error identifying the file and record.
+
+A parabolic semimajor axis is shown as `Infinity`; an undefined inclination is
+shown as `NaN`. Large numbers use scientific notation when needed. For HYBRID,
+only encounters handled by its close-encounter solver are recorded.
+
+See section 5 of the [original README](README_MERCURY6.md), the
+[original manual](mercury6.man), and the
+[technical notes](docs/technical_notes.md#close-encounter-output) for more detail.
+Validation coverage and measured limits are described in
+[Testing MERCUDA](docs/validation.md#close6-validation).
 
 ## Using the GPU
 
