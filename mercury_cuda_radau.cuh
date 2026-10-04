@@ -71,10 +71,10 @@ __global__ void ra_error(int n,const double* b,const int* bad,double* out) {
     if(threadIdx.x==0) out[blockIdx.x]=val;
 }
 __global__ void ra_finish(int n,double t,double next,const double* ox,const double* ov,
-    const double* a0,double* b,double* e,double* xx,double* vv) {
+    const double* a0,double* b,double* e,double* xx,double* vv,bool reset) {
     int z=blockIdx.x*blockDim.x+threadIdx.x; if(z>=3*n) return;
     double p[7],corr[7];
-    for(int k=0;k<7;k++) { p[k]=b[k*3*n+z]; corr[k]=p[k]-e[k*3*n+z]; }
+    for(int k=0;k<7;k++) { p[k]=b[k*3*n+z]; corr[k]=reset?0.0:p[k]-e[k*3*n+z]; }
     double sx=ra.xc[7]*p[6],sv=ra.vc[6]*p[6];
     for(int k=5;k>=0;k--) { sx+=ra.xc[k+1]*p[k]; sv+=ra.vc[k]*p[k]; }
     xx[z]=(sx+ra.xc[0]*a0[z])*(t*t)+ov[z]*t+ox[z];
@@ -110,7 +110,7 @@ void radau_step(double time,double* h,double* hdid,double tol,int64_t* rejected)
         double next=err==0?*h*1.4:copysign(pow(tol/err,1.0/9.0),*h);
         if(ra_reset&&fabs(next/ *h)<1) { *h=next*.8; ++*rejected; continue; }
         if(fabs(next/ *h)>1.4) next=*h*1.4;
-        ra_finish<<<blocks(3*n),THREADS>>>(n,*h,next,oldx,oldv,acc0,b,e,x,v);
+        ra_finish<<<blocks(3*n),THREADS>>>(n,*h,next,oldx,oldv,acc0,b,e,x,v,ra_reset);
         check(cudaGetLastError()); *hdid=*h; *h=next; ra_reset=false; return;
     }
 }

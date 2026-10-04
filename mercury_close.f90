@@ -19,7 +19,7 @@ module mercury_close
   integer :: used=0, stamp=0, style=0, record_number=0
   character(250) :: current_file='', header=''
   integer :: header_length
-  logical :: select_all
+  logical :: select_all, warned_velocity=.false.
 contains
   subroutine bad(reason)
     character(*), intent(in) :: reason
@@ -167,8 +167,8 @@ contains
     call setting(unit,line)
     k=index(line,'=',back=.true.); value=trim(lower(adjustl(line(k+1:))))
     select case(trim(value))
-    case('yes'); style=style+2
-    case('no')
+    case('yes','y'); style=style+2
+    case('no','n')
     case default; call bad('relative time must be yes or no')
     end select
     select_all=.true.
@@ -198,7 +198,7 @@ contains
     integer :: j
     if(len_trim(name)<1.or.len_trim(name)>25) call bad('body name must contain 1 to 25 characters')
     do j=1,len_trim(name)
-      if(iachar(name(j:j))<=32.or.iachar(name(j:j))>126) call bad('invalid body name')
+      if(iachar(name(j:j))<=32.or.iachar(name(j:j))==127) call bad('invalid body name')
     end do
   end subroutine
 
@@ -295,8 +295,19 @@ contains
           if(mapping(code)==0) call bad('unmapped encounter body code')
           indices(j)=mapping(code)
           p=26+(j-1)*24
-          call state(line(p:p+23),rcen,rmax,central,x,v)
-          call close_elements(central+masses(code),x,v,elements(1,j),elements(2,j),elements(3,j))
+          call encoded(line(p:p+23))
+          if(fraction(line(p+12:p+15))==0d0) then
+            ! A fast finite velocity can round to zero in the legacy encoding.
+            ! Its magnitude cannot be recovered: keep the event and flag its elements.
+            elements(:,j)=ieee_value(0d0,ieee_quiet_nan)
+            if(.not.warned_velocity.and..not.write_output) then
+              write(*,'(a)') 'Warning: '//trim(filename)//': velocity exceeds encounter encoding precision; orbital elements shown as NaN'
+              warned_velocity=.true.
+            end if
+          else
+            call state(line(p:p+23),rcen,rmax,central,x,v)
+            call close_elements(central+masses(code),x,v,elements(1,j),elements(2,j),elements(3,j))
+          end if
         end do
         distance=floating(line(18:25))
         if(distance<0d0) call bad('negative encounter distance')

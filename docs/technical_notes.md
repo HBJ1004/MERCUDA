@@ -328,3 +328,32 @@ headers within that file do not change the origin.
 Existing outputs are warned about and skipped, as in the original program.
 See section 5 of [README_MERCURY6.md](../README_MERCURY6.md) for the input format
 and HYBRID recording limitation.
+
+## Release-audit corrections (5 October 2026)
+
+`element6` allows for the precision of both compressed timestamps when selecting
+output rows. At modern Julian dates, the seven base-224 mantissa digits lose
+about a nanoday of absolute precision; using only a relative interval tolerance
+could silently discard correctly scheduled rows. The new regression checks
+201 daily rows and 13 longer-interval rows in both time directions.
+
+After a RADAU predictor reset, there is no previous prediction error to carry
+into the next sequence. Both backends now clear that correction. The regression
+uses a circular Kepler orbit over 1,000 days, ten-day output, two tolerances and
+both time directions, with position and normalized velocity bounds of `1e-12`.
+
+When HYBRID resolves a pair merger and then redoes the step for a central impact,
+the saved physical state now includes the pair's merged position and momentum.
+Mass changes and merger history stay consistent through the redo. The numerical
+regression compares against an independently prepared merged-body initial state;
+it supplements the earlier population and CPU/CUDA consistency checks.
+
+`close6` accepts `y`/`n` as well as `yes`/`no`, and names with non-ASCII bytes
+within the original 25-byte limit. An encoded velocity fraction of zero can be
+valid for a fast encounter: its magnitude was lost during compression. That
+event is retained, its unrecoverable orbital elements are reported as `NaN`,
+and a warning is printed. The reader still rejects malformed records.
+
+The published large-particle CPU benchmarks do not establish a speedup over
+original MERCURY6 for small planetary systems. CPU performance depends on the
+algorithm and population as well as the cost of runtime work arrays.

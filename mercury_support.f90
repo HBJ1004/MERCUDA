@@ -8,7 +8,44 @@ module mercury_support
   integer(int64) :: accepted_steps = 0, rejected_steps = 0, force_calls = 0
   real(8) :: initial_step = 0d0, step_seconds = 0d0, event_seconds = 0d0
   character(25), allocatable :: names(:)
+  integer, allocatable :: rewind_survivor(:), rewind_lost(:)
+  real(8), allocatable :: rewind_weight(:)
+  integer :: rewind_count=0
 contains
+  subroutine begin_merger_rewind(n)
+    integer, intent(in) :: n
+    rewind_count=0
+    if(allocated(rewind_survivor)) then
+      if(size(rewind_survivor)>=n) return
+      deallocate(rewind_survivor,rewind_lost,rewind_weight)
+    endif
+    allocate(rewind_survivor(n),rewind_lost(n),rewind_weight(n))
+  end subroutine
+
+  subroutine record_merger_rewind(survivor,lost,weight)
+    integer, intent(in) :: survivor,lost
+    real(8), intent(in) :: weight
+    rewind_count=rewind_count+1
+    if(rewind_count>size(rewind_survivor)) call fail('Too many mergers in one step')
+    rewind_survivor(rewind_count)=survivor
+    rewind_lost(rewind_count)=lost
+    rewind_weight(rewind_count)=weight
+  end subroutine
+
+  subroutine apply_merger_rewind(n,x,v)
+    integer, intent(in) :: n
+    real(8), intent(inout) :: x(3,n),v(3,n)
+    integer :: k,i,j
+    real(8) :: w
+    ! Replay each merger on the saved pre-step physical state. Mass changes
+    ! persist through a central-impact redo; its momentum must persist too.
+    do k=1,rewind_count
+      i=rewind_survivor(k); j=rewind_lost(k); w=rewind_weight(k)
+      x(:,i)=w*x(:,i)+(1d0-w)*x(:,j)
+      v(:,i)=w*v(:,i)+(1d0-w)*v(:,j)
+    enddo
+  end subroutine
+
   real(8) function wall_seconds()
     integer(int64) :: ticks,rate
     call system_clock(ticks,rate)

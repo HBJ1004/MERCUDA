@@ -153,6 +153,31 @@ its Bulirsch-Stoer subsystem. Read the
 [usage guide](../README_MERCUDA.md#reading-close-encounters) and
 [technical notes](technical_notes.md#close-encounter-output) for output behavior.
 
+## Release audit on 5 October 2026
+
+An external audit identified regressions missed by the previous campaign.
+The Julian-date output-selection, frequent-output RADAU accuracy, and HYBRID
+merger/central-impact regressions were reproduced independently. New tests fail
+on the previous programs and pass with the fixes. The old HYBRID test checked
+population and CPU/CUDA consistency; the new test also checks merger momentum
+against an independently prepared reference. The RADAU regression uses a
+`1e-12` bound, tighter than the broad trajectory acceptance criterion.
+
+Compatibility checks now cover `close.in` answers `y`/`n`, non-ASCII names,
+and fast encounters actually written by `mercury6`. A zero stored velocity
+fraction loses the magnitude during compression; the encounter is retained
+with a warning and `NaN` orbital elements. The upstream GPL-3 license text is
+included in [LICENSE](../LICENSE), with attribution in [NOTICE](../NOTICE).
+
+The optimized and debug CPU regression suites pass **60 tests each**, with
+six expected GPU skips per suite. The CUDA backend builds successfully, but
+its changed RADAU correction and shared HYBRID handling have not yet been
+validated on the GPU. The full CPU campaign is being rerun. Earlier successful
+campaigns below describe their recorded revisions, not a guarantee against
+these subsequently discovered defects. See the
+[technical notes](technical_notes.md#release-audit-corrections-5-october-2026)
+for the corrections.
+
 ## Close6 validation on 4 October 2026
 
 At revision [`ceaf09d`](https://github.com/HBJ1004/MERCUDA/commit/ceaf09dabe09840bac2535b90c11effeec037421),
@@ -210,7 +235,7 @@ that unsupported combinations are rejected.
 Tests exposed and fixed a CUDA encounter-buffer overread, exact-parabolic input
 and element-conversion errors, singular initial configurations, missing encounter
 records when stopping, postprocessing bounds errors, and misleading GPU fallback
-logging. The supplied PR formula was preserved.
+logging. The existing radiation-pressure/PR formula was preserved.
 
 ## Results and limits
 
@@ -229,7 +254,7 @@ Passing on one GPU does not certify every driver or GPU architecture. Arbitrary
 custom forces, pathological singular orbits and long chaotic integrations
 cannot be covered exhaustively. MVS still cannot resolve close encounters, and
 symplectic methods require an adequate timestep for eccentric orbits. PR tests
-check the preserved supplied prescription, including its component-wise
+check the preserved radiation-pressure/PR prescription, including its component-wise
 velocity expression; they do not establish equivalence to another PR model.
 Binary-star drivers and fragmentation remain unimplemented. See
 [technical notes](technical_notes.md) and the [MERCURY6 manual](../README_MERCURY6.md)

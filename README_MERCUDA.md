@@ -138,7 +138,8 @@ before regenerating them; keep `ce.out`. If an input file is corrupt, `close6`
 stops with an error identifying the file and record.
 
 A parabolic semimajor axis is shown as `Infinity`; an undefined inclination is
-shown as `NaN`. Large numbers use scientific notation when needed. For HYBRID,
+shown as `NaN`. If an encounter is too fast for the stored velocity precision,
+its orbital elements are shown as `NaN` with a warning; the encounter is kept. Large numbers use scientific notation when needed. For HYBRID,
 only encounters handled by its close-encounter solver are recorded.
 
 See section 5 of the [original README](README_MERCURY6.md), the

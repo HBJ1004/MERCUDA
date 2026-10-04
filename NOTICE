@@ -1,0 +1,10 @@
+MERCUDA is based on MERCURY6 by John E. Chambers (1999 and later updates),
+including the upstream distribution maintained at https://github.com/smirik/mercury.
+Original author and modification notices are retained in the source files.
+
+MERCUDA contains modifications by HBJ1004 and contributors, including CUDA
+backends, additional forces, input and scheduling changes, and validated
+postprocessors. These modifications were made through 5 October 2026.
+
+This modified distribution is provided under GNU General Public License
+version 3. The complete license text is in LICENSE. No warranty is provided.

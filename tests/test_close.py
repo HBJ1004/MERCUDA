@@ -6,7 +6,7 @@ import random
 import subprocess
 import tempfile
 import unittest
-from cases import ROOT, MU, run
+from cases import ROOT, MU, body, prepare, run
 import close_reference as ref
 
 class Close(unittest.TestCase):
@@ -70,7 +70,7 @@ class Close(unittest.TestCase):
         header=ref.header(); event=ref.encounter()
         cases=[[],[event],header+[event[:-1]],header+[b'x'+event[1:]],header+[event[:30]+b'\x01'+event[31:]],
                header+[event[:11]+ref.digits(0,3)+event[14:]],header+[event[:11]+ref.digits(99,3)+event[14:]],
-               header+[event[:14]+event[11:14]+event[17:]],header+[event[:37]+b' '*4+event[41:]],
+               header+[event[:14]+event[11:14]+event[17:]],
                [header[0][:-1]], [header[0][:-1]+b'9',*header[1:]],
                [header[0],header[1],header[1]],ref.header(central=0),ref.header(rcen=0),ref.header(masses=[-1,0])]
         for j,records in enumerate(cases):
@@ -92,6 +92,42 @@ class Close(unittest.TestCase):
         path=self.execute(records)
         self.assertEqual(len(list(path.glob('*.clo'))),257)
         ref.validate_rows(path/'P0.clo',records,'P0'); ref.validate_rows(path/'P256.clo',records,'P256')
+    def test_legacy_answers_and_utf8_names(self):
+        for answer,expected in [('y',.5),('n',2451545.5)]:
+            with tempfile.TemporaryDirectory(dir=self.base) as tmp:
+                records=ref.header(names=['PLANET','PARTICLE'])+[ref.encounter()]
+                # The original format stores names as up to 25 bytes, including UTF-8.
+                records[1]=records[1][:3]+'Mércury'.encode().ljust(25,b' ')+records[1][28:]
+                path=ref.fixture(tmp,records=records,names=['Mércury'])
+                p=path/'close.in';p.write_text(p.read_text().replace('relative time = no','relative time = '+answer))
+                run(path,executable=ROOT/'close6')
+                row=ref.rows(path/'Mércury.clo')[0]
+                self.assertAlmostEqual(float(row[0]),expected,delta=5e-6)
+                self.assertEqual(row[1],'PARTICLE')
+
+    def test_fast_encounter_encoding_keeps_event(self):
+        records=ref.header()+[ref.encounter(first=([1,0,0],[0,10,0]))]
+        path=ref.fixture(self.base,records=records)
+        result=run(path,executable=ROOT/'close6')
+        self.assertIn('velocity exceeds encounter encoding precision',result.stdout)
+        rows=ref.rows(path/'PLANET.clo')
+        self.assertEqual(len(rows),1)
+        self.assertTrue(all(math.isnan(float(v)) for v in rows[0][-6:-3]))
+        self.assertTrue(all(math.isfinite(float(v)) for v in rows[0][-3:]))
+
+    def test_fast_encounter_from_actual_writer(self):
+        planet=body('PLANET',mass=1e-20,e=0,r=10000)
+        particle=body('PARTICLE');particle['x']=[1.001,-.005,0];particle['v']=[0,.1,0]
+        path=prepare(self.base,big=[planet],small=[particle],central_mass=1e-6,stop=.1,interval=.1)
+        run(path)
+        records=(path/'ce.out').read_bytes().split(b'\n')
+        self.assertTrue(any(r.startswith(b'\x0c6b') for r in records))
+        (path/'close.in').write_text((ROOT/'close.in.sample').read_text())
+        result=run(path,executable=ROOT/'close6')
+        self.assertIn('velocity exceeds encounter encoding precision',result.stdout)
+        self.assertTrue(ref.rows(path/'PLANET.clo'))
+        self.assertTrue(any(math.isnan(float(v)) for row in ref.rows(path/'PLANET.clo') for v in row[-6:]))
+
     def test_direct_elements(self):
         build=Path(os.environ.get('MERCURY_TEST_BUILD',ROOT/'build'))
         source=self.base/'direct.f90'; exe=self.base/'direct'

@@ -59,3 +59,7 @@ The speedup includes CPU improvements; small or short runs can favor CPU.
 Please cite [Chambers (1999)](https://doi.org/10.1046/j.1365-8711.1999.02379.x)
 and record the MERCUDA revision and force settings used.
 [Additional references](docs/references.md) · [Original MERCURY6 repository](https://github.com/smirik/mercury).
+
+MERCUDA is distributed under [GNU GPL version 3](LICENSE), following the
+[upstream MERCURY6 license](https://github.com/smirik/mercury/blob/aee9e0f6b8e4d359a9ed3607ee12e34a2e2dafac/LICENSE).
+See [NOTICE](NOTICE) for attribution and modification dates.

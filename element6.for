@@ -39,6 +39,7 @@ c
       integer nchar,algor,centre,allflag,firstflag,ninfile,nel,iel(22)
       integer nbod1,nbig1,unit(NMAX),code(NMAX),master_unit(NMAX)
       real*8 time,teval,t0,t1,tprevious,rmax,rcen,rfac,rhocgs,temp
+      real*8 time_resolution,previous_resolution
       real*8 mcen,jcen(3),el(22,NMAX),s(3),is(NMAX),ns(NMAX),a(NMAX)
       real*8 mio_c2re, mio_c2fl,fr,theta,phi,fv,vtheta,vphi,gm
       real*8 x(3,NMAX),v(3,NMAX),xh(3,NMAX),vh(3,NMAX),m(NMAX)
@@ -56,6 +57,7 @@ c------------------------------------------------------------------------------
 c
       allflag = 0
       tprevious = 0.d0
+      previous_resolution = 0.d0
       rhocgs = AU * AU * AU * K2 / MSUN
 
 c texadactyl_20180507.4
@@ -136,7 +138,7 @@ c Read parameters used by this programme
         call mio_spl (250,string,nsub,lim)
         c1 = string(lim(1,nsub):lim(2,nsub))
         if (j.eq.1) read (string(lim(1,nsub):lim(2,nsub)),*) teval
-        teval = abs(teval) * .99999999999d0
+        if (j.eq.1) teval = abs(teval)
         if (j.eq.2.and.(c1.eq.'d'.or.c1.eq.'D')) timestyle = 0
         if (j.eq.3.and.(c1.eq.'y'.or.c1.eq.'Y')) timestyle = timestyle+2
         if (j.eq.4) call m_format (string,timestyle,nel,iel,fout,header,
@@ -209,6 +211,10 @@ c
 c
 c Decompress the time, number of objects, central mass and J components etc.
           time = mio_c2fl (cc(1:8))
+c The seven base-224 mantissa digits lose absolute precision at large JD.
+c Allow the quantization of both timestamps plus binary64 decoding roundoff.
+          time_resolution = 2.d0*10.d0**(iachar(cc(8:8))-144)
+     %      /224.d0**7 + 4.d0*spacing(time)
           nbig = int(.5d0 + mio_c2re(cc(9:16), 0.d0, 11239424.d0, 3))
           nsml = int(.5d0 + mio_c2re(cc(12:19),0.d0, 11239424.d0, 3))
           mcen = mio_c2fl (cc(15:22))
@@ -302,6 +308,10 @@ c
 c
 c Decompress the time and the number of objects
           time = mio_c2fl (cc(1:8))
+c The seven base-224 mantissa digits lose absolute precision at large JD.
+c Allow the quantization of both timestamps plus binary64 decoding roundoff.
+          time_resolution = 2.d0*10.d0**(iachar(cc(8:8))-144)
+     %      /224.d0**7 + 4.d0*spacing(time)
           nbig = int(.5d0 + mio_c2re(cc(9:16),  0.d0, 11239424.d0, 3))
           nsml = int(.5d0 + mio_c2re(cc(12:19), 0.d0, 11239424.d0, 3))
           nbod = nbig + nsml
@@ -407,9 +417,11 @@ c Convert time to desired format
           if (timestyle.eq.3) t1 = (time - t0) / 365.25d0
 c
 c If output is required at this epoch, write elements to appropriate files
-          if (firstflag.eq.0.or.abs(time-tprevious).ge.teval) then
+          if (firstflag.eq.0.or.abs(time-tprevious)
+     %      +time_resolution+previous_resolution.ge.teval) then
             firstflag = 1
             tprevious = time
+            previous_resolution = time_resolution
 c
 c Write required elements to the appropriate aei file
             do j = 1, nbod

@@ -628,6 +628,8 @@ c
 c
       use mercury_support, only: accepted_steps, wall_seconds,
      %  step_seconds
+      use mercury_support, only: begin_merger_rewind,
+     %  apply_merger_rewind
       use mercury_gpu
       implicit none
       include 'mercury.inc'
@@ -742,6 +744,7 @@ c Make sure the integration is heading in the right direction
       if (opflag.eq.-1) tmp0 = tstart - time
       h0 = sign (h0, tmp0)
 c
+      if (algor.eq.10) call begin_merger_rewind(nbod)
       call gpu_push (nbod,nbig,m,x,v,ngf,jcen,rce,rphys,opt,ngflag)
       if (gpu_enabled) then
         timer = wall_seconds()
@@ -815,6 +818,10 @@ c Check for collisions with the central body
       else
         call gpu_bcoord (time,jcen,nbod,nbig,h0,m,x,v,xh,vh,ngf,ngflag,opt,bcoord)
       end if
+c Merge the saved physical state too, before central-event interpolation
+c and any redo. Pair mass changes already persist in the current state.
+      if (algor.eq.10.and.colflag.ne.0)
+     %  call apply_merger_rewind(nbod,xh0,vh0)
       itmp = 2
       if (algor.eq.11.or.algor.eq.12) itmp = 3
       call mce_cent (time,h0,rcen,jcen,itmp,nbod,nbig,m,xh0,vh0,xh,vh,
@@ -3792,6 +3799,7 @@ c
      %  ngflag,colflag,ce,nce,ice,jce,nclo,iclo,jclo,dclo,tclo,ixvclo,
      %  jxvclo,outfile,mem,lmem,force)
 c
+      use mercury_support, only: record_merger_rewind
       use mercury_gpu
       implicit none
       include 'mercury.inc'
@@ -3816,7 +3824,7 @@ c Local
       real*8 mbs(NMAX),xbs(3,NMAX),vbs(3,NMAX),sbs(3,NMAX)
       real*8 rcritbs(NMAX),rcebs(NMAX),rphybs(NMAX)
       real*8 ngfbs(4,NMAX),x0(3,NMAX),v0(3,NMAX)
-      real*8 thit(CMAX),dhit(CMAX),thit1,temp
+      real*8 thit(CMAX),dhit(CMAX),thit1,temp,merge_weight
       character*25 idbs(NMAX)
 c
 c------------------------------------------------------------------------------
@@ -3908,9 +3916,13 @@ c If collisions occurred, resolve the collision and return a flag
             if (chit(k).eq.1) then
               i = ihit(k)
               j = jhit(k)
+              merge_weight = mbs(i)/(mbs(i)+mbs(j))
               call mce_coll (thit(k),tstart,elost,jcen,i,j,nbs,nbsbig,
      %          mbs,xbs,vbs,sbs,rphybs,statbs,idbs,opt,mem,lmem,
      %          outfile(3))
+              if (i.ne.ihit(k)) merge_weight=1.d0-merge_weight
+              if (algor.eq.10) call record_merger_rewind
+     %          (index(i),index(j),merge_weight)
               if (gpu_enabled) then
                 if (encounter_update(mbs,xbs,vbs).ne.0)
      %            call fail('CUDA encounter collision upload failed')
@@ -4438,6 +4450,9 @@ c
         s(5) = b(5,k) - e(5,k)
         s(6) = b(6,k) - e(6,k)
         s(7) = b(7,k) - e(7,k)
+c A reset has no previous prediction error to extrapolate. Reusing the
+c newly fitted coefficients as that error degrades the following sequence.
+        if (dtflag.eq.1) s(1:7) = 0.d0
 c
 c Estimate B values for the next sequence (Eqs. 13 of Everhart).
         e(1,k) = q* (b(7,k)* 7.d0 + b(6,k)* 6.d0 + b(5,k)* 5.d0
