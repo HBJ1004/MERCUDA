@@ -169,12 +169,20 @@ fraction loses the magnitude during compression; the encounter is retained
 with a warning and `NaN` orbital elements. The upstream GPL-3 license text is
 included in [LICENSE](../LICENSE), with attribution in [NOTICE](../NOTICE).
 
-The optimized and debug CPU regression suites pass **60 tests each**, with
-six expected GPU skips per suite. The CUDA backend builds successfully, but
-its changed RADAU correction and shared HYBRID handling have not yet been
-validated on the GPU. The full CPU campaign is being rerun. Earlier successful
-campaigns below describe their recorded revisions, not a guarantee against
-these subsequently discovered defects. See the
+At revision [`f1c0529`](https://github.com/HBJ1004/MERCUDA/commit/f1c052960ce3d84c6a6475d4f136264a20ab88e0),
+the full CPU campaign passed **13,779 cases**, with **zero failures and zero
+incomplete checks**, from a clean source snapshot. Each optimized and debug CPU
+regression suite ran **60 tests: 54 passed and six expected GPU checks skipped**.
+A separate 36-case RADAU check varied output cadence, tolerance, eccentricity
+and time direction; its worst position error against the independent
+80-digit Kepler reference was **1.51e-13 AU**. Its table is retained locally
+at `results/release-audit/radau_cadence.csv` and is gitignored.
+
+The CUDA backend builds successfully, but its changed RADAU correction and
+shared HYBRID handling have not yet been validated on the GPU. GPU execution
+remains pending; these changes are not certified by the older GPU results.
+Earlier successful campaigns below describe their recorded revisions, not a
+guarantee against these subsequently discovered defects. See the
 [technical notes](technical_notes.md#release-audit-corrections-5-october-2026)
 for the corrections.
 

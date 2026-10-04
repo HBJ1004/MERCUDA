@@ -357,3 +357,8 @@ and a warning is printed. The reader still rejects malformed records.
 The published large-particle CPU benchmarks do not establish a speedup over
 original MERCURY6 for small planetary systems. CPU performance depends on the
 algorithm and population as well as the cost of runtime work arrays.
+
+Some input checks are stricter than original MERCURY6: `files.in` filenames
+must appear without trailing text, hyperbolic Asteroidal input requires negative
+semimajor axis, and `message.in` must not have a trailing blank record. These
+produce explicit errors rather than silently altered trajectories.
