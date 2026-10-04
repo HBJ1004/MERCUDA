@@ -1,0 +1,2 @@
+# Encounter fixtures contain base-224 bytes; never convert their line endings.
+tests/fixtures/close6/*.ce -text

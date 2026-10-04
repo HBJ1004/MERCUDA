@@ -19,7 +19,8 @@ class Close(unittest.TestCase):
         return path
     def test_massive_circular_and_radial(self):
         radial=([0,0,1],[0,0,.01])
-        records=ref.header()+[ref.encounter(),ref.encounter(first=radial,time=2451546)]
+        records=ref.header()+[ref.encounter(),ref.encounter(first=radial,time=2451546),
+                              ref.encounter(first=([1.,2.,3.],[.01,.02,.03]),time=2451547)]
         path=self.execute(records)
         ref.validate_rows(path/'PLANET.clo',records,'PLANET')
         ref.validate_rows(path/'PARTICLE.clo',records,'PARTICLE')
@@ -27,6 +28,7 @@ class Close(unittest.TestCase):
         self.assertEqual(float(first[-6]),1.)
         self.assertEqual(float(first[-5]),0.)
         self.assertTrue(math.isnan(float(ref.rows(path/'PLANET.clo')[1][-4])))
+        self.assertTrue(math.isnan(float(ref.rows(path/'PLANET.clo')[2][-4])))
     def test_orbits_and_precision(self):
         for precision in (1,2,3):
             with tempfile.TemporaryDirectory(dir=self.base) as tmp:
@@ -113,7 +115,8 @@ end program
         header_source.write_text(text[start:end])
         result=subprocess.run(['gfortran',*flags,'-I'+str(build),str(source),str(header_source),str(build/'mercury_close.o'),str(build/'mercury_support.o'),'-o',str(exe)],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        states=[(1,[.5,0,0],[0,2,0]),(1,[1,0,0],[1,0,0]),(.5,[1,0,0],[1,0,0]),(1,[1,0,0],[0,0,0])]
+        states=[(1,[.5,0,0],[0,2,0]),(1,[1,0,0],[1,0,0]),(.5,[1,0,0],[1,0,0]),(1,[1,0,0],[0,0,0]),(1,[1,2,3],[.01,.02,.03]),
+                (1,[1,2,3],[-1,-2,-3]),(1,[1,2,3],[.01,.02,.0300000001])]
         rng=random.Random(1729)
         for _ in range(32): states.append((1,[rng.uniform(.2,2),rng.uniform(-1,1),rng.uniform(-1,1)],[rng.uniform(-1,1) for _ in range(3)]))
         data='\n'.join(' '.join(str(n) for n in [mu,*x,*v]) for mu,x,v in states)+'\n'

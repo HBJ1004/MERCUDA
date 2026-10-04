@@ -222,6 +222,24 @@ def close6(c):
             c.record('close6',f'{profile.name}/writer/{algorithm}/{sign}/{precision}',writer)
             if algorithm in ('BS','RADAU') and precision=='high':
                 c.record('close6',f'{profile.name}/writer-forces/{algorithm}/{sign}',lambda writer=writer:writer(forces=True))
+        for algorithm in ('BS','BS2','RADAU','HYBRID'):
+            def removal_writer(algorithm=algorithm):
+                profile.select()
+                a=body('A',mass=1e-8,e=0,d=1e-6); b=body('B',mass=2e-8,e=0,d=1e-6)
+                b['x'][0]+=.0003
+                impact=body('IMPACT'); impact['x']=[.006,0,0]; impact['v']=[-.1,0,0]
+                escape=body('ESCAPE'); escape['x']=[99.9,0,0]; escape['v']=[10,0,0]
+                with tempfile.TemporaryDirectory() as tmp:
+                    path=prepare(tmp,algorithm=algorithm,big=[a,b],small=[impact,escape,body('KEEP',a=2)],
+                                 backend='cuda' if profile.cuda else 'cpu',collisions=True,
+                                 stop=.03,step=.001,interval=.01,periodic_interval=1)
+                    run(path,timeout=180)
+                    from cases import dump
+                    assert set(dump(path,'big.dmp'))=={'B'}
+                    assert set(dump(path))=={'KEEP'}
+                    records=[r for r in (path/'ce.out').read_bytes().split(b'\n') if r]
+                    return fixture_check(records)
+            c.record('close6',f'{profile.name}/writer-removals/{algorithm}',removal_writer)
         def golden():
             directory=ROOT/'tests/fixtures/close6'
             records=[r for r in (directory/'upstream.ce').read_bytes().split(b'\n') if r]
@@ -257,7 +275,8 @@ def host_memory(c):
     row=c.record('close6','host-memory/build',compile_)
     if row['status']!='pass': return
     binary=build/'close6'
-    records=ref.header()+[ref.encounter(),ref.encounter(first=([0,0,1],[0,0,.01]))]
+    records=ref.header()+[ref.encounter(),ref.encounter(first=([0,0,1],[0,0,.01])),
+        ref.encounter(first=([1,2,3],[.01,.02,.03]))]
     c.record('close6','host-memory/valid-and-radial',lambda:fixture_check(records,executable=binary))
     records=ref.header(names=['P'+str(j) for j in range(513)],masses=[0]*513)+[ref.encounter(codes=(1,513))]
     c.record('close6','host-memory/batching',lambda:fixture_check(records,executable=binary))

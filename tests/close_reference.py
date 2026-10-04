@@ -116,7 +116,9 @@ def elements(mu,x,v):
     h=[x[1]*v[2]-x[2]*v[1],x[2]*v[0]-x[0]*v[2],x[0]*v[1]-x[1]*v[0]]
     e=max(D(0),1+2*energy*dot(h,h)/(mu*mu)).sqrt()
     a=D('Infinity') if energy==0 else -mu/(2*energy)
-    inclination=math.nan if all(t==0 for t in h) else math.degrees(math.atan2(float((h[0]**2+h[1]**2).sqrt()),float(h[2])))
+    pairs=((1,2),(2,0),(0,1))
+    angular_error=[D(16)*D(2)**-52*(abs(x[j]*v[k])+abs(x[k]*v[j])) for j,k in pairs]
+    inclination=math.nan if all(abs(t)<=bound for t,bound in zip(h,angular_error)) else math.degrees(math.atan2(float((h[0]**2+h[1]**2).sqrt()),float(h[2])))
     return [float(a),float(e),inclination],float(r)
 
 def references(records):

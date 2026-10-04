@@ -332,7 +332,7 @@ contains
   subroutine close_elements(mu,x,v,a,e,inclination)
     real(8), intent(in) :: mu,x(3),v(3)
     real(8), intent(out) :: a,e,inclination
-    real(8) :: r,scale,u(3),rh(3),h(3),ev(3),alpha,v2
+    real(8) :: r,scale,u(3),rh(3),h(3),ev(3),alpha,v2,angular_error(3)
     if(.not.ieee_is_finite(mu).or.any(.not.ieee_is_finite(x)).or.any(.not.ieee_is_finite(v))) &
       call bad('nonfinite encounter state')
     scale=maxval(abs(x))
@@ -349,7 +349,11 @@ contains
     else
       a=1d0/alpha
     end if
-    if(all(h==0d0)) then
+    ! A radial state at an arbitrary angle can leave cancellation-sized h.
+    ! Component-wise product bounds retain resolved, very small angular momenta.
+    angular_error=16d0*epsilon(1d0)*[abs(rh(2)*u(3))+abs(rh(3)*u(2)), &
+      abs(rh(3)*u(1))+abs(rh(1)*u(3)),abs(rh(1)*u(2))+abs(rh(2)*u(1))]
+    if(all(abs(h)<=angular_error)) then
       inclination=ieee_value(0d0,ieee_quiet_nan)
     else
       inclination=atan2(sqrt(h(1)**2+h(2)**2),h(3))*180d0/pi
