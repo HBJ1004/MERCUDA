@@ -153,6 +153,33 @@ its Bulirsch-Stoer subsystem. Read the
 [usage guide](../README_MERCUDA.md#reading-close-encounters) and
 [technical notes](technical_notes.md#close-encounter-output) for output behavior.
 
+## GPU validation completed on 5 October 2026
+
+The full CPU/CUDA campaign passed **27,555 cases**, with **zero failures and
+zero incomplete checks**, at revision
+[`8564487`](https://github.com/HBJ1004/MERCUDA/commit/8564487e0ef38042c240e1bf73ab3f9da64fb7ab).
+All required groups completed from a clean source snapshot. Source hashes were
+verified unchanged after the run; documentation was updated afterwards.
+
+Both optimized and debug CUDA regression suites passed **69 tests each**, with
+no skips. This includes the new frequent-output RADAU and HYBRID merger/central-
+impact regressions. The combined campaign also passed **1,591 close6 checks**,
+**1,168 scientific checks** and **324 capacity checks**, including 100,000
+particles and 257 massive bodies. Counts include expected input rejections.
+
+All **20 NVIDIA device-sanitizer checks** passed, covering memory access,
+uninitialized reads, synchronization and shared-memory races in the lifecycle
+worker and real integration programs for all five algorithms. The host
+encounter-buffer sanitizer check and the close6 host memory checks also passed.
+No errors were detected in these fixtures.
+
+Hardware and tools: NVIDIA GeForce RTX 4070 (12 GB), driver 591.86,
+CUDA toolkit 12.6.85 and GNU Fortran 13.3. Reports, the CSV table and Python plots
+are retained locally in `results/validation/full/` and remain gitignored.
+This completes the GPU validation deferred during the release audit. Coverage
+and acceptance bounds are described above; the
+[results and limits](#results-and-limits) still apply.
+
 ## Release audit on 5 October 2026
 
 An external audit identified regressions missed by the previous campaign.
@@ -178,11 +205,10 @@ and time direction; its worst position error against the independent
 80-digit Kepler reference was **1.51e-13 AU**. Its table is retained locally
 at `results/release-audit/radau_cadence.csv` and is gitignored.
 
-The CUDA backend builds successfully, but its changed RADAU correction and
-shared HYBRID handling have not yet been validated on the GPU. GPU execution
-remains pending; these changes are not certified by the older GPU results.
-Earlier successful campaigns below describe their recorded revisions, not a
-guarantee against these subsequently discovered defects. See the
+The subsequent [complete CPU/CUDA campaign](#gpu-validation-completed-on-5-october-2026)
+validated these fixes on the GPU as well. Earlier campaigns below describe their
+recorded revisions; the audit shows why a successful campaign is not a guarantee
+against undiscovered defects. See the
 [technical notes](technical_notes.md#release-audit-corrections-5-october-2026)
 for the corrections.
 
@@ -199,11 +225,12 @@ checks and host encounter-buffer sanitizer check also passed. The hardware and
 compiler versions were the same as recorded for the 3 October campaign below.
 
 The combined campaign was stopped to avoid competing with the user's GPU work.
-Its report contains **26,240 passed cases, zero failures and one interruption**;
-the package-wide scientific and stress groups remain incomplete. This is a
-completed close6 validation, not a new complete GPU validation of the package.
-The separate CPU report is complete. Both reports record the clean source
-revision and source hashes; documentation was updated after testing.
+That interrupted run recorded **26,240 passed cases, zero failures and one
+interruption**; its package-wide scientific and stress groups were incomplete.
+The dedicated close6 validation and separate CPU campaign completed. The full
+campaign on 5 October above subsequently completed every required group.
+The reports recorded clean source revisions and source hashes; documentation
+was updated after testing.
 
 The tests exposed and fixed the legacy reader's mass-dependent velocity error,
 undefined orbital quantities on radial and parabolic paths, and unsafe handling
