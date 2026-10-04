@@ -26,7 +26,7 @@ OPT = '-O3 -g -ffixed-line-length-none -ffp-contract=off'
 DEBUG = '-O0 -g -ffixed-line-length-none -ffp-contract=off -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow'
 GROUPS = {'build','workflow','quick','force-values','force-matrix','scientific',
           'epochs','restarts','formats','postprocessing','events','stress',
-          'invalid','custom','backends','lifecycle','sanitize'}
+          'invalid','custom','backends','lifecycle','sanitize','close6'}
 
 
 class Unavailable(RuntimeError):
@@ -71,7 +71,7 @@ class Campaign:
             'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in sorted([*ROOT.glob('*.for'),*ROOT.glob('*.f90'),*ROOT.glob('*.cu'),
                                  *ROOT.glob('*.cuh'),*ROOT.glob('*.h'),*ROOT.glob('*.cpp'),*ROOT.glob('*.inc'),ROOT/'Makefile',
-                                 *ROOT.glob('tests/*.py'),*ROOT.glob('tests/validation/*')]) if p.is_file()},
+                                 *ROOT.glob('tests/*.py'),*ROOT.glob('tests/validation/*'),*ROOT.glob('tests/fixtures/**/*')]) if p.is_file()},
             'scope':'CPU only' if args.cpu_only else 'CPU and CUDA',
             'compiler':self.command(['gfortran','--version']).stdout.splitlines()[0],
             'cxx':self.command(['g++','--version']).stdout.splitlines()[0],

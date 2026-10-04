@@ -237,6 +237,9 @@ def scientific(c):
 
 
 def execute(c,group):
+    if group=='close6':
+        from close_cases import close6
+        return close6(c)
     functions = {'force-values':force_values,'force-matrix':force_matrix,'scientific':scientific}
     if group in functions: return functions[group](c)
     from operations import execute as operations

@@ -76,6 +76,9 @@ class Close(unittest.TestCase):
                 path=ref.fixture(tmp,records=records); result=run(path,executable=ROOT/'close6',check=False)
                 self.assertGreater(result.returncode,0,(j,result.stderr))
                 self.assertIn('ce.out: record',result.stderr); self.assertEqual(list(path.glob('*.clo')),[])
+    def test_empty_population(self):
+        path=self.execute(ref.header(names=[],masses=[]))
+        self.assertEqual(list(path.glob('*.clo')),[])
     def test_filename_collisions(self):
         path=ref.fixture(self.base,records=ref.header(names=['A/B','A_B'])+[ref.encounter()])
         result=run(path,executable=ROOT/'close6',check=False)
@@ -91,7 +94,7 @@ class Close(unittest.TestCase):
         build=Path(os.environ.get('MERCURY_TEST_BUILD',ROOT/'build'))
         source=self.base/'direct.f90'; exe=self.base/'direct'
         source.write_text('''program direct
-use mercury_close, only: close_elements
+use mercury_close, only: close_elements, close_field
 implicit none
 real(8):: a,e,i,x(3),v(3),mu
 integer:: ios
@@ -99,11 +102,11 @@ do
 read(*,*,iostat=ios) mu,x,v
 if(ios/=0) exit
 call close_elements(mu,x,v,a,e,i)
-write(*,'(3(es26.17e3,1x))') a,e,i
+write(*,'(3(es26.17e3,1x),3(a,1x))') a,e,i,close_field(a,'(f9.4)'),close_field(e,'(f8.6)'),close_field(i,'(f7.3)')
 end do
 end program
 ''')
-        flags=os.environ.get('MERCURY_TEST_FFLAGS','-O3 -ffp-contract=off').split()
+        flags=os.environ.get('MERCURY_TEST_FFLAGS','-O3 -ffp-contract=off').split()+['-ffree-line-length-none']
         # The legacy header routine is the only external dependency; do not link a second program.
         header_source=self.base/'header.for'
         text=(ROOT/'close6.for').read_text(); start=text.index('      subroutine m_formce'); end=text.index('c%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%',start)
@@ -116,7 +119,11 @@ end program
         data='\n'.join(' '.join(str(n) for n in [mu,*x,*v]) for mu,x,v in states)+'\n'
         result=subprocess.run([str(exe)],input=data,capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        actual=[[float(t) for t in line.split()] for line in result.stdout.splitlines()]
+        tokens=[line.split() for line in result.stdout.splitlines()]
+        actual=[[float(t) for t in line[:3]] for line in tokens]
+        self.assertEqual(tokens[0][3],'Infinity')
+        self.assertEqual(tokens[1][5],'NaN')
+        self.assertFalse(any('*' in token for line in tokens for token in line))
         self.assertTrue(math.isinf(actual[0][0])); self.assertEqual(actual[1][:2],[1,1]); self.assertTrue(math.isnan(actual[1][2]))
         from decimal import Decimal as D,localcontext
         for (mu,x,v),values in zip(states,actual):

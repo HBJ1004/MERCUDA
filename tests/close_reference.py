@@ -41,6 +41,13 @@ def fraction(data):
     for c in data: numerator=numerator*BASE+c-32
     return D(numerator)/D(BASE**len(data))
 
+def integer(data):
+    value=0
+    for digit in data:
+        assert digit>=32
+        value=value*BASE+digit-32
+    return value
+
 def floating(data): return (2*fraction(data[:7])-1)*D(10)**(data[7]-144)
 
 def header(names=('PLANET','PARTICLE'),masses=None,codes=None,time=2451545,central=1,rcen=.005,rmax=100,precision=3,algorithm=2):
@@ -121,18 +128,18 @@ def references(records):
             if record.startswith(b'\x0c6a'):
                 central=floating(record[19:27])*D(str(MU)); rcen=floating(record[51:59]); rmax=floating(record[59:67])
                 mapping={}
-                count=int(fraction(record[13:16])*BASE**3)+int(fraction(record[16:19])*BASE**3)
+                count=integer(record[13:16])+integer(record[16:19])
                 for _ in range(count):
-                    meta=next(iterator); code=int(fraction(meta[:3])*BASE**3)
+                    meta=next(iterator); code=integer(meta[:3])
                     mapping[code]=(meta[3:28].decode().strip(),floating(meta[28:36])*D(str(MU)))
             else:
-                codes=[int(fraction(record[11:14])*BASE**3),int(fraction(record[14:17])*BASE**3)]
-                values=[]; radii=[]
+                codes=[integer(record[11:14]),integer(record[14:17])]
+                values=[]; radii=[]; states=[]
                 for j,code in enumerate(codes):
                     x,v=decoded_state(record[25+24*j:49+24*j],rcen,rmax,central)
-                    el,r=elements(central+mapping[code][1],x,v); values.append(el); radii.append(r)
+                    el,r=elements(central+mapping[code][1],x,v); values.append(el); radii.append(r); states.append([float(t) for t in x+v])
                 output.append(dict(time=float(floating(record[3:11])),distance=float(floating(record[17:25])),
-                                   names=[mapping[code][0] for code in codes],elements=values,radii=radii))
+                                   names=[mapping[code][0] for code in codes],elements=values,radii=radii,states=states))
     return output
 
 def rows(path):
@@ -146,14 +153,19 @@ def rows(path):
         result.append(tokens)
     return result
 
-def validate_rows(path,records,body_name):
+def validate_rows(path,records,body_name,absolute_days=False):
     expected=references(records); actual=rows(path); selected=[]
     for ref in expected:
         if body_name in ref['names']: selected.append((ref,ref['names'].index(body_name)))
     assert len(actual)==len(selected),(path,len(actual),len(selected))
-    maximum=0.
+    errors=dict(distance_error_au=0.,axis_error_au=0.,inverse_axis_error_scaled=0.,eccentricity_error=0.,inclination_error_degrees=0.,time_error_days=0.)
     for row,(ref,j) in zip(actual,selected):
         assert row[-8]==ref['names'][1-j],row
+        if absolute_days:
+            token=row[0]; quantum=10.**(int(token.split('E')[-1])-8) if 'E' in token else 1e-5
+            time_error=abs(float(token)-ref['time'])
+            assert time_error<=.5*quantum+64*math.ulp(ref['time'])
+            errors['time_error_days']=max(errors['time_error_days'],time_error)
         target=[ref['distance'],*ref['elements'][j],*ref['elements'][1-j]]
         for k,(token,value) in enumerate(zip(row[-7:],target)):
             observed=float(token)
@@ -166,8 +178,10 @@ def validate_rows(path,records,body_name):
             if k in (1,4) and abs(ref['radii'][j if k==1 else 1-j]/value)<1e-5:
                 r=ref['radii'][j if k==1 else 1-j]
                 error=abs(r/observed-r/value)
+                errors['inverse_axis_error_scaled']=max(errors['inverse_axis_error_scaled'],error)
                 assert error<=1e-12+r*tolerance/max(abs(observed*value),1e-300),(token,value,error)
             else:
                 error=abs(observed-value); assert error<=tolerance,(token,value,tolerance)
-            maximum=max(maximum,error)
-    return {'rows':len(actual),'maximum_printed_error':maximum}
+                key=['distance_error_au','axis_error_au','eccentricity_error','inclination_error_degrees','axis_error_au','eccentricity_error','inclination_error_degrees'][k]
+                errors[key]=max(errors[key],error)
+    return {'rows':len(actual),**errors}

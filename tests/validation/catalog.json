@@ -14,6 +14,7 @@
     {"id":"central-systems", "document":"README_MERCURY6.md", "section":"a system of moons", "groups":["scientific","formats"]},
     {"id":"settings", "document":"README_MERCURY6.md", "section":"integration accuracy parameter", "groups":["workflow","epochs","invalid"]},
     {"id":"events", "document":"README_MERCURY6.md", "section":"collisions", "groups":["events","quick"]},
+    {"id":"close6", "document":"README_MERCURY6.md", "section":"E X A M I N I N G", "groups":["close6","quick"]},
     {"id":"postprocessing", "document":"README_MERCURY6.md", "section":"Converting data", "groups":["postprocessing","quick"]},
     {"id":"method-limits", "document":"README_MERCURY6.md", "section":"spurious results", "groups":["scientific","events","invalid"]},
     {"id":"capacity", "document":"docs/technical_notes.md", "section":"Body capacity", "groups":["stress","invalid"]},
@@ -24,6 +25,10 @@
     {"id":"input-errors", "document":"README_MERCURY6.md", "section":"input files", "groups":["invalid"]}
   ],
   "limits": {
+    "close6_eccentricity": 1e-12,
+    "close6_inclination_degrees": 1e-10,
+    "close6_inverse_axis": 1e-12,
+    "close6_printing_half_unit": 0.5,
     "force_relative": 1e-12,
     "force_absolute": 1e-30,
     "stable_trajectory": 1e-8,

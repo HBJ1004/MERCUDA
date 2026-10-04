@@ -5,7 +5,7 @@ module mercury_close
   use mercury_support, only: fail, read_messages, lower, next_line
   implicit none
   private
-  public :: close_run, close_elements
+  public :: close_run, close_elements, close_field
   real(8), parameter :: k2=2.959122082855911d-4, pi=3.1415926535897932384626433832795d0
   integer, parameter :: maxcode=224**3-1, batch_size=256
   type object
@@ -356,7 +356,7 @@ contains
     end if
   end subroutine
 
-  function field(value,format) result(text)
+  function close_field(value,format) result(text)
     real(8), intent(in) :: value
     character(*), intent(in) :: format
     character(:), allocatable :: text
@@ -422,17 +422,17 @@ contains
       write(year_text,'(i10)') year
       if(index(year_text,'*')>0) write(year_text,'(i0)') year
       write(month_text,'(i2)') month
-      line=' '//trim(year_text)//' '//trim(month_text)//' '//field(day,'(f8.5)')
+      line=' '//trim(year_text)//' '//trim(month_text)//' '//close_field(day,'(f8.5)')
     case(2)
-      line=' '//field(time-origin,'(f18.5)')
+      line=' '//close_field(time-origin,'(f18.5)')
     case(3)
-      line=' '//field((time-origin)/365.25d0,'(f18.7)')
+      line=' '//close_field((time-origin)/365.25d0,'(f18.7)')
     case default
-      line=' '//field(clock,'(f18.5)')
+      line=' '//close_field(clock,'(f18.5)')
     end select
-    line=line//' '//name//' '//field(distance,'(f10.8)') &
-      //' '//field(own(1),'(f9.4)')//' '//field(own(2),'(f8.6)')//' '//field(own(3),'(f7.3)') &
-      //' '//field(other(1),'(f9.4)')//' '//field(other(2),'(f8.6)')//' '//field(other(3),'(f7.3)')
+    line=line//' '//name//' '//close_field(distance,'(f10.8)') &
+      //' '//close_field(own(1),'(f9.4)')//' '//close_field(own(2),'(f8.6)')//' '//close_field(own(3),'(f7.3)') &
+      //' '//close_field(other(1),'(f9.4)')//' '//close_field(other(2),'(f8.6)')//' '//close_field(other(3),'(f7.3)')
     write(unit,'(a)',iostat=ios) line
     if(ios/=0) call bad('cannot write close encounter output')
   end subroutine
@@ -456,6 +456,7 @@ contains
     do j=1,nfiles
       call scan(files(j),.false.)
     end do
+    if(used==0) return ! A valid empty population needs no output files.
     call filenames()
     selected=pack([(j,j=1,used)],objects(:used)%wanted)
     nselected=size(selected)

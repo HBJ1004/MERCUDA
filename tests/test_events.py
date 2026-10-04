@@ -4,6 +4,7 @@ import shutil
 import test_mercury as core
 from cases import ROOT, MU, body, prepare, run, dump
 from force_library import load_gpu
+import close_reference as close_ref
 
 # Reuse the fixture/assertion helpers without running Integration's tests twice.
 import unittest
@@ -29,7 +30,19 @@ class Events(unittest.TestCase):
             shutil.copy(ROOT/'close.in.sample',p/'close.in')
             with (p/'close.in').open('a') as f: f.write('PLANET\n')
             run(p,executable=ROOT/'close6')
-            self.assertEqual(sum(bool(r.strip()) and r.lstrip()[0] in '0123456789-' for r in (p/'PLANET.clo').read_text().splitlines()),4100)
+            decoded=close_ref.rows(p/'PLANET.clo')
+            self.assertEqual(len(decoded),4100)
+            for row,record in zip(decoded,records):
+                code=0
+                for digit in record[11:14]: code=code*224+digit-32
+                self.assertEqual(row[-8],'P'+str(code-2))
+            indices=sorted(set([0,4099]+[j*4100//64 for j in range(64)]))
+            sampled=p/'sample.clo'
+            sampled.write_text('\n'.join(' '.join(decoded[j]) for j in indices)+'\n')
+            metadata=[r for r in (p/'ce.out').read_bytes().split(b'\n') if r][:2+4100]
+            # This fixture has one header, one massive body and 4100 particles.
+            sample_records=metadata+[b'\x0c6b'+records[j] for j in indices]
+            close_ref.validate_rows(sampled,sample_records,'PLANET')
         if len(results)==2:
             for a,b in zip(*results):
                 self.assertEqual(a[8:14],b[8:14]) # identities and deterministic ordering
