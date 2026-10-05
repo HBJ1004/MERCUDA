@@ -10,17 +10,19 @@ describes the inherited methods and file formats.
 | Area | MERCUDA behavior |
 | --- | --- |
 | Integration methods | Retains BS, BS2, RADAU, MVS and HYBRID recurrences, with a CPU or CUDA backend; does not substitute a new integrator. |
-| CPU performance | Removes unnecessary work for massless bodies in initialization/energy calculations, improves name checking, and fuses PN into the gravity pass. A speedup over original MERCURY6 includes these CPU improvements. |
+| CPU performance | Removes quadratic work for massless bodies in initialization/energy calculations, speeds up name checking, and fuses PN into the gravity pass. This helps large particle counts. Small planetary systems can run slower than original MERCURY6 on CPU, because work arrays are now sized at run time. |
 | Body capacity | Allocates from input counts in all three executables instead of the original fixed 2,000-body limit. Memory, output encoding and disk space still limit large runs. |
 | Integration corrections | Direction-aware adaptive scheduling, BS2 error-norm correction, signed BS stages, RADAU velocity-dependent prediction, event/impact timing corrections, and a local-clock step check for HYBRID close encounters apply on CPU too. |
 | Relativity (PN) | Honors the existing input switch and uses a central-mass Cartesian Schwarzschild 1PN acceleration. Original MERCURY6's PN routine was a placeholder. |
 | Radiation pressure / PR | Radiation pressure and PR drag for massless bodies, based on [Burns, Lamy & Soter (1979)](https://doi.org/10.1016/0019-1035(79)90050-2), [Liou, Zook & Jackson (1995)](https://doi.org/10.1006/icar.1995.1120), and [Klačka et al. (2012)](https://doi.org/10.1111/j.1365-2966.2012.20321.x). Original MERCURY6's PR routine was a placeholder. |
 | Non-gravitational coefficients | A1/A2/A3 retain the cometary law. The separate `yar` input defaults to zero and specifies an inverse-square transverse Yarkovsky acceleration, including for massive bodies. |
-| Diagnostics and dumps | Reports the execution backend and workload/timing counters; dumps preserve force parameters and identify the force model. |
+| Diagnostics and dumps | Reports the execution backend and workload/timing counters; dumps keep force parameters and identify the force model. |
+| Postprocessors | `element6` selects rows correctly at large Julian dates. `close6` has a validated reader with corrected orbital elements. See [Postprocessing](#postprocessing). |
+| Input checks | A few malformed inputs that MERCURY6 silently tolerated now stop with an error. See [Input compatibility](#input-compatibility). |
 
 **MERCUDA CPU is not identical to original MERCURY6.** Even with every
-additional force disabled, corrections to
-scheduling and error control can change the accepted steps. CPU and CUDA use the
+additional force disabled, corrections to scheduling and error control can
+change the accepted steps. CPU and CUDA use the
 same MERCUDA force models, but floating-point evaluation/reduction order can
 produce small trajectory differences. Compare convergence and physical outputs,
 rather than expecting bitwise agreement.
@@ -84,7 +86,9 @@ Kepler drift, and integrates that compact subsystem in a separate CUDA BS2
 workspace. Compact encounter endpoints return to Fortran each substep for the
 original event and merger handling. This transfer and launch overhead can make
 small encounter groups slower on a GPU. Arbitrary collision logic and file I/O
-remain on the CPU.
+remain on the CPU. If a pair merger and a central impact occur in the same step,
+the redone step starts from a saved state that already includes the merged
+body's position and momentum.
 
 Further optimization would target launch overhead, encounter transfers and the
 remaining serial big-body loops; changes to precision or the integration method
@@ -202,6 +206,15 @@ The internal non-gravitational array has five components per body:
 routine receives the `ngf(1:4,:)` section, so beta keeps its original position.
 External callers of the CUDA upload API must supply the five-component array.
 
+## Parabolic orbits
+
+Cometary input with `e=1` uses Barker's equation. An exactly zero-energy orbit
+uses its current distance for the encounter scale, as other unbound orbits do.
+The Cartesian-to-elements conversion uses the matching Barker mean anomaly.
+For an exact parabola, `element6` reports the semi-major axis and aphelion as
+`Infinity`; Cartesian coordinates remain finite. These quantities have no
+finite value for a parabolic orbit.
+
 ## Backward integration and restarts
 
 Set stop time earlier than start time in `param.in`, as before. BS, BS2 and RADAU
@@ -212,7 +225,8 @@ steps. The BS2 velocity-error norm also corrects an inherited cross-component ty
 choose different steps and yield different errors from historical BS2.
 BS substage force times are signed correctly, encounter checks use the
 accepted step, and RADAU predictors include velocity-dependent forces and are
-reset after externally imposed step changes.
+reset after externally imposed step changes. A reset carries no stale prediction
+error into the next sequence, so frequent output does not reduce RADAU accuracy.
 
 MVS and HYBRID retain their fixed production timestep and output on that grid.
 An output interval smaller than the internal timestep cannot create intermediate
@@ -255,39 +269,34 @@ because the PN equation changed. Old gravitational, cometary and PR-only dumps
 remain accepted. The ordinary energy report is Newtonian and
 should not be interpreted as a conserved-energy error under these extra forces.
 
-## Validation
+## Input compatibility
 
-`make test` runs isolated standard-library Python regression tests; it never runs
-the user's input files. Tests cover analytic force values, PR accelerations
-checked against a frozen reference routine, CPU/CUDA force and trajectory comparisons, reverse integration,
-round trips, off-grid preparation, relativistic precession, secular Yarkovsky drift,
-CPU/CUDA restart switching across all five production algorithms, postprocessing,
-collisions (including a HYBRID merger and central impact in one step), ejections,
-and 4,100 simultaneous
-encounter records. GPU tests skip when CUDA is unavailable. `make test-debug` runs the same tests
-with Fortran bounds and runtime checks in a separate build directory.
+A few inputs that original MERCURY6 silently tolerated now stop with a clear
+error, rather than risk an altered run:
 
-## Further reading
+- A `files.in` line must contain only the filename, without trailing text.
+- Hyperbolic Asteroidal input (`e > 1`) requires a negative semimajor axis.
+- `message.in` must not end with a blank record; use the supplied file.
+- `ndump` and `nfun` in `param.in` must be positive.
 
-See the [benchmark report](benchmarks.md) for runtime and accuracy measurements,
-and the [reference list](references.md) for the integrator and force-model
-literature. Source comments cite the equations at their implementations.
+`close.in` keeps the original reader's tolerance: only the first letter of the
+time-unit (`d`/`y`) and relative-time (`y`/`n`) answers is read, and a selection
+line uses its first word, truncated to 25 characters. Answers starting with any
+other letter are rejected.
 
-## Validation
+## Postprocessing
 
-See [Testing MERCUDA](validation.md) for the independent reference models,
-acceptance bounds, configuration coverage and commands for reproducing checks.
+### Element output selection
 
-## Parabolic orbits
+`element6` writes a row when the time since the previous row reaches the
+minimum output interval. As in the original program, the comparison allows
+0.1% slack, so rows scheduled exactly one interval apart are not lost when
+`mercury6`'s accumulated output times drift slightly (for example, a 0.1-day
+interval at a large Julian date). It also allows for the precision of the
+compressed timestamps: at modern Julian dates their seven base-224 digits
+resolve only about a nanoday.
 
-Cometary input with `e=1` uses Barker's equation. An exactly zero-energy orbit
-uses its current distance for the encounter scale, as other unbound orbits do.
-The Cartesian-to-elements conversion uses the matching Barker mean anomaly.
-For an exact parabola, `element6` reports the semi-major axis and aphelion as
-`Infinity`; Cartesian coordinates remain finite. These quantities have no
-finite value for a parabolic orbit.
-
-## Close-encounter output
+### Close-encounter output
 
 `close6` is a CPU postprocessor for the original MERCURY6 encounter format. Its
 validated reader is in `mercury_close.f90`; `close6.for` retains the original
@@ -322,43 +331,35 @@ names or codes within a header, and collisions between output filenames, are
 errors. Missing selected bodies produce header-only files.
 
 With multiple input files, rows follow file order and recorded encounter order;
-records are not sorted or deduplicated. Relative time now uses the first header's
+records are not sorted or deduplicated. Relative time uses the first header's
 epoch in each file; the legacy reader retained the first file's origin. Later
 headers within that file do not change the origin.
 Existing outputs are warned about and skipped, as in the original program.
-See section 5 of [README_MERCURY6.md](../README_MERCURY6.md) for the input format
-and HYBRID recording limitation.
 
-## Release-audit corrections (5 October 2026)
+A zero stored velocity fraction can be valid for a fast encounter: the encoding
+cannot represent the speed. Such an event is kept, its orbital elements are
+reported as `NaN`, and a warning is printed. Body names may contain non-ASCII
+bytes within the original 25-byte limit. Malformed records are still rejected.
 
-`element6` allows for the precision of both compressed timestamps when selecting
-output rows. At modern Julian dates, the seven base-224 mantissa digits lose
-about a nanoday of absolute precision; using only a relative interval tolerance
-could silently discard correctly scheduled rows. The new regression checks
-201 daily rows and 13 longer-interval rows in both time directions.
+See section 5 of the [MERCURY6 manual](../README_MERCURY6.md) for the input
+format and the HYBRID recording limitation.
 
-After a RADAU predictor reset, there is no previous prediction error to carry
-into the next sequence. Both backends now clear that correction. The regression
-uses a circular Kepler orbit over 1,000 days, ten-day output, two tolerances and
-both time directions, with position and normalized velocity bounds of `1e-12`.
+## Validation
 
-When HYBRID resolves a pair merger and then redoes the step for a central impact,
-the saved physical state now includes the pair's merged position and momentum.
-Mass changes and merger history stay consistent through the redo. The numerical
-regression compares against an independently prepared merged-body initial state;
-it supplements the earlier population and CPU/CUDA consistency checks.
+`make test` runs isolated standard-library Python regression tests; it never runs
+the user's input files. Tests cover analytic force values, PR accelerations
+checked against a frozen reference routine, CPU/CUDA force and trajectory
+comparisons, reverse integration, round trips, off-grid preparation,
+relativistic precession, secular Yarkovsky drift, CPU/CUDA restart switching
+across all five production algorithms, postprocessing, collisions (including a
+HYBRID merger and central impact in one step), ejections, and 4,100 simultaneous
+encounter records. GPU tests skip when CUDA is unavailable. `make test-debug`
+runs the same tests with Fortran bounds and runtime checks in a separate build
+directory. [Testing MERCUDA](validation.md) describes the full validation
+campaign, its independent references and acceptance bounds.
 
-`close6` accepts `y`/`n` as well as `yes`/`no`, and names with non-ASCII bytes
-within the original 25-byte limit. An encoded velocity fraction of zero can be
-valid for a fast encounter: its magnitude was lost during compression. That
-event is retained, its unrecoverable orbital elements are reported as `NaN`,
-and a warning is printed. The reader still rejects malformed records.
+## Further reading
 
-The published large-particle CPU benchmarks do not establish a speedup over
-original MERCURY6 for small planetary systems. CPU performance depends on the
-algorithm and population as well as the cost of runtime work arrays.
-
-Some input checks are stricter than original MERCURY6: `files.in` filenames
-must appear without trailing text, hyperbolic Asteroidal input requires negative
-semimajor axis, and `message.in` must not have a trailing blank record. These
-produce explicit errors rather than silently altered trajectories.
+See the [benchmark report](benchmarks.md) for runtime and accuracy measurements,
+and the [reference list](references.md) for the integrator and force-model
+literature. Source comments cite the equations at their implementations.

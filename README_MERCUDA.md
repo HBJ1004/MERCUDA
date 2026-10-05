@@ -16,9 +16,12 @@ You still build with `make`, edit `.in` files, and run `./mercury6` without comm
 line options. CPU is the default. To use the GPU, build with CUDA support and add
 `execution backend = cuda` at the end of `param.in`.
 
-MERCUDA also changes CPU runs: it improves speed, removes the fixed 2,000-body
-limit, and corrects several integration problems, including backward integration.
-It is therefore not identical to the original MERCURY6, even on CPU.
+MERCUDA also changes CPU runs: it removes the fixed 2,000-body limit, speeds up
+setup for large particle counts, and corrects several integration problems,
+including backward integration. It is therefore not identical to the original
+MERCURY6, even on CPU. Small planetary systems can run somewhat slower on CPU
+than with the original. A few malformed inputs that MERCURY6 tolerated now stop
+with an error; see [input compatibility](docs/technical_notes.md#input-compatibility).
 
 **A1, A2 and A3 retain their original cometary meaning.** Yarkovsky drift uses
 the separate `yar` input. If you used A2 for Yarkovsky in an earlier MERCUDA
@@ -123,9 +126,11 @@ GPU settings are needed.
    directory. `make gen-in` creates `close.in` if it is missing.
 2. Open `close.in`. Keep its first line. Set the number of input files and list
    their names, usually one file named `ce.out`.
-3. Choose days or years, and whether time is relative to the integration start.
-   Years with relative time set to `no` gives calendar dates.
-4. List the body names you want, one per line. Leave the list empty for all bodies.
+3. Set the time units to `days` or `years`, and relative time to `yes` or `no`
+   (the first letter is enough). Years with relative time set to `no` gives
+   calendar dates.
+4. List the body names you want, one per line. Only the first word of each line
+   is read. Leave the list empty for all bodies.
 5. Run `./close6`. Each selected body gets a `.clo` file with the encounter time,
    partner, minimum distance and both bodies' orbital elements. A file with only its header
    means there are no matching recorded encounters.
@@ -137,16 +142,16 @@ Existing `.clo` files are skipped with a warning. Move or remove those files
 before regenerating them; keep `ce.out`. If an input file is corrupt, `close6`
 stops with an error identifying the file and record.
 
-A parabolic semimajor axis is shown as `Infinity`; an undefined inclination is
-shown as `NaN`. If an encounter is too fast for the stored velocity precision,
-its orbital elements are shown as `NaN` with a warning; the encounter is kept. Large numbers use scientific notation when needed. For HYBRID,
-only encounters handled by its close-encounter solver are recorded.
+A parabolic semimajor axis is shown as `Infinity`, and an undefined inclination
+as `NaN`. If an encounter is too fast for the stored velocity precision, it is
+kept, but its orbital elements are shown as `NaN` with a warning. Large numbers
+use scientific notation when needed. For HYBRID, only encounters handled by its
+close-encounter solver are recorded.
 
-See section 5 of the [original README](README_MERCURY6.md), the
-[original manual](mercury6.man), and the
-[technical notes](docs/technical_notes.md#close-encounter-output) for more detail.
-Validation coverage and measured limits are described in
-[Testing MERCUDA](docs/validation.md#close6-validation).
+For more detail, see section 5 of the [MERCURY6 manual](README_MERCURY6.md) and
+the [technical notes](docs/technical_notes.md#close-encounter-output).
+[Testing MERCUDA](docs/validation.md#close6-validation) describes how `close6`
+was validated.
 
 ## Using the GPU
 
@@ -191,8 +196,8 @@ All five methods below can run on CPU or GPU.
 | BS | Supports all built-in forces, including velocity-dependent and dissipative terms. |
 | RADAU | Supports all built-in forces, including velocity-dependent and dissipative terms. |
 | BS2 | Use for gravity, including central-body oblateness. PN, PR, Yarkovsky and A1/A2/A3 are rejected. |
-| MVS | PN, PR and Yarkovsky are not supported. Small bodies must have zero mass. |
-| HYBRID | PN, PR and Yarkovsky are not supported. |
+| MVS | PN, PR and Yarkovsky are rejected. Small bodies must have zero mass. |
+| HYBRID | PN, PR and Yarkovsky are rejected. |
 
 For the purpose and usual settings of each method, see the
 [MERCURY6 manual](README_MERCURY6.md). Custom `mfo_user` forces require CPU. The close-
@@ -273,12 +278,11 @@ Save any needed results and restart files before deleting them.
 ## More information
 
 - [MERCURY6 manual](README_MERCURY6.md): standard input formats, settings and output instructions, adapted for this package. The unmodified original is [mercury6.man](mercury6.man); its build instructions do not apply.
-- [Technical notes](docs/technical_notes.md): equations, numerical changes, GPU implementation and tests.
+- [Technical notes](docs/technical_notes.md): equations, numerical changes, GPU implementation and compatibility.
 - [Benchmarks](docs/benchmarks.md): speed and accuracy comparisons.
+- [Testing MERCUDA](docs/validation.md): how to run the tests, what has been
+  validated, and the limits of testing.
 - [References](docs/references.md): papers to consult and cite.
 
-## Testing
-
-Run `make test` for regression checks or `make test-debug` for bounds checks.
-See [Testing MERCUDA](docs/validation.md) for the full CPU/GPU validation campaign,
-independent accuracy references and the limits of testing.
+To check your build, run `make test`, or `make test-debug` for the same tests
+with bounds checking.

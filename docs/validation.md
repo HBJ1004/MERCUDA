@@ -5,6 +5,26 @@ CPU and CUDA calculations against independent references, as well as checking
 that unsupported combinations stop with an error. It does not prove that every
 possible orbit or user-written force is correct.
 
+## Latest results
+
+At revision [`8564487`](https://github.com/HBJ1004/MERCUDA/commit/8564487e0ef38042c240e1bf73ab3f9da64fb7ab),
+the full CPU/CUDA campaign passed **27,555 cases** with no failures and no
+incomplete checks. These included 1,591 `close6` checks, 1,168 scientific checks
+and 324 capacity checks (up to 100,000 particles and 257 massive bodies). All 20
+NVIDIA Compute Sanitizer checks passed for the five algorithms: no memory-access
+errors, uninitialized reads, synchronization errors or shared-memory races were
+found. Counts include expected input rejections.
+
+Two later fixes are covered by the regression suites but not yet by a new full
+campaign: `element6` row selection for output intervals that are inexact in
+binary, and `close.in` answers and selection lines read as the original program
+did. Both CUDA regression suites (optimized and debug) pass all 70 tests with no
+skips.
+
+Hardware and tools: NVIDIA GeForce RTX 4070 (12 GB), driver 591.86, CUDA
+toolkit 12.6.85 and GNU Fortran 13.3. Passing on one GPU does not certify
+other drivers or architectures; see [results and limits](#results-and-limits).
+
 ## Routine checks
 
 From the repository directory:
@@ -153,125 +173,6 @@ its Bulirsch-Stoer subsystem. Read the
 [usage guide](../README_MERCUDA.md#reading-close-encounters) and
 [technical notes](technical_notes.md#close-encounter-output) for output behavior.
 
-## GPU validation completed on 5 October 2026
-
-The full CPU/CUDA campaign passed **27,555 cases**, with **zero failures and
-zero incomplete checks**, at revision
-[`8564487`](https://github.com/HBJ1004/MERCUDA/commit/8564487e0ef38042c240e1bf73ab3f9da64fb7ab).
-All required groups completed from a clean source snapshot. Source hashes were
-verified unchanged after the run; documentation was updated afterwards.
-
-Both optimized and debug CUDA regression suites passed **69 tests each**, with
-no skips. This includes the new frequent-output RADAU and HYBRID merger/central-
-impact regressions. The combined campaign also passed **1,591 close6 checks**,
-**1,168 scientific checks** and **324 capacity checks**, including 100,000
-particles and 257 massive bodies. Counts include expected input rejections.
-
-All **20 NVIDIA device-sanitizer checks** passed, covering memory access,
-uninitialized reads, synchronization and shared-memory races in the lifecycle
-worker and real integration programs for all five algorithms. The host
-encounter-buffer sanitizer check and the close6 host memory checks also passed.
-No errors were detected in these fixtures.
-
-Hardware and tools: NVIDIA GeForce RTX 4070 (12 GB), driver 591.86,
-CUDA toolkit 12.6.85 and GNU Fortran 13.3. Reports, the CSV table and Python plots
-are retained locally in `results/validation/full/` and remain gitignored.
-This completes the GPU validation deferred during the release audit. Coverage
-and acceptance bounds are described above; the
-[results and limits](#results-and-limits) still apply.
-
-## Release audit on 5 October 2026
-
-An external audit identified regressions missed by the previous campaign.
-The Julian-date output-selection, frequent-output RADAU accuracy, and HYBRID
-merger/central-impact regressions were reproduced independently. New tests fail
-on the previous programs and pass with the fixes. The old HYBRID test checked
-population and CPU/CUDA consistency; the new test also checks merger momentum
-against an independently prepared reference. The RADAU regression uses a
-`1e-12` bound, tighter than the broad trajectory acceptance criterion.
-
-Compatibility checks now cover `close.in` answers `y`/`n`, non-ASCII names,
-and fast encounters actually written by `mercury6`. A zero stored velocity
-fraction loses the magnitude during compression; the encounter is retained
-with a warning and `NaN` orbital elements. The upstream GPL-3 license text is
-included in [LICENSE](../LICENSE), with attribution in [NOTICE](../NOTICE).
-
-At revision [`f1c0529`](https://github.com/HBJ1004/MERCUDA/commit/f1c052960ce3d84c6a6475d4f136264a20ab88e0),
-the full CPU campaign passed **13,779 cases**, with **zero failures and zero
-incomplete checks**, from a clean source snapshot. Each optimized and debug CPU
-regression suite ran **60 tests: 54 passed and six expected GPU checks skipped**.
-A separate 36-case RADAU check varied output cadence, tolerance, eccentricity
-and time direction; its worst position error against the independent
-80-digit Kepler reference was **1.51e-13 AU**. Its table is retained locally
-at `results/release-audit/radau_cadence.csv` and is gitignored.
-
-The subsequent [complete CPU/CUDA campaign](#gpu-validation-completed-on-5-october-2026)
-validated these fixes on the GPU as well. Earlier campaigns below describe their
-recorded revisions; the audit shows why a successful campaign is not a guarantee
-against undiscovered defects. See the
-[technical notes](technical_notes.md#release-audit-corrections-5-october-2026)
-for the corrections.
-
-## Close6 validation on 4 October 2026
-
-At revision [`ceaf09d`](https://github.com/HBJ1004/MERCUDA/commit/ceaf09dabe09840bac2535b90c11effeec037421),
-the complete CPU campaign passed **13,773 cases**, with **zero failures and
-zero incomplete checks**, using optimized and debug builds. This includes
-**785 close6 checks** and the full scientific and capacity groups.
-
-The combined CPU/CUDA campaign completed all **1,579 close6 checks**, using
-optimized and debug builds on both backends. Its 20 NVIDIA device-sanitizer
-checks and host encounter-buffer sanitizer check also passed. The hardware and
-compiler versions were the same as recorded for the 3 October campaign below.
-
-The combined campaign was stopped to avoid competing with the user's GPU work.
-That interrupted run recorded **26,240 passed cases, zero failures and one
-interruption**; its package-wide scientific and stress groups were incomplete.
-The dedicated close6 validation and separate CPU campaign completed. The full
-campaign on 5 October above subsequently completed every required group.
-The reports recorded clean source revisions and source hashes; documentation
-was updated after testing.
-
-The tests exposed and fixed the legacy reader's mass-dependent velocity error,
-undefined orbital quantities on radial and parabolic paths, and unsafe handling
-of malformed records and capacity boundaries. The integrated force equations
-were unchanged. Counts include expected input rejections and named checks of
-multiple output rows.
-
-## Validation completed on 3 October 2026
-
-The complete CPU campaign passed **12,988 validation cases** at revision
-[`3a6c32d`](https://github.com/HBJ1004/MERCUDA/commit/3a6c32d5ee331fbf6cba4a392fd73d7a67ca4133),
-using optimized and debug builds. `make test` also passed all 52 regression tests.
-The combined CPU/CUDA campaign passed **25,964 cases**, with **zero failures
-and zero incomplete checks**. All 20 NVIDIA device-sanitizer checks passed for
-BS, BS2, RADAU, MVS and HYBRID, covering both the lifecycle worker and integration
-driver. No memory-access errors, device leaks, uninitialized-memory reads,
-synchronization errors or shared-memory race hazards were detected in these
-fixtures. The host AddressSanitizer/UBSan check of encounter-buffer packing also
-passed. The GPU was an NVIDIA RTX 4070, with driver 591.86 and CUDA toolkit 12.6;
-GNU Fortran 13.3 was used for all profiles.
-
-The device checks were initially blocked by the Windows debugger interface.
-After enabling it, they passed on 3 October at revision
-[`0aa6bc4`](https://github.com/HBJ1004/MERCUDA/commit/0aa6bc47de88c9861cf605b19fbb5a80f23fb1c8).
-The numerical source, fixtures and tools were verified unchanged before adding
-the follow-up results to the combined report. Its provenance preserves the
-original blocked checks and the follow-up campaign.
-
-An environment restart interrupted the combined run. It continued from a
-13,400-case checkpoint after verifying the numerical source, fixtures and tools;
-this continuation is recorded in the report provenance.
-
-Counts include expected input rejections. In the combined force matrix,
-9,280 cases compare trajectories with an independent reference and 11,200 check
-that unsupported combinations are rejected.
-
-Tests exposed and fixed a CUDA encounter-buffer overread, exact-parabolic input
-and element-conversion errors, singular initial configurations, missing encounter
-records when stopping, postprocessing bounds errors, and misleading GPU fallback
-logging. The existing radiation-pressure/PR formula was preserved.
-
 ## Results and limits
 
 Reports, CSV tables and Python plots are written to `results/validation/full/`
@@ -289,8 +190,55 @@ Passing on one GPU does not certify every driver or GPU architecture. Arbitrary
 custom forces, pathological singular orbits and long chaotic integrations
 cannot be covered exhaustively. MVS still cannot resolve close encounters, and
 symplectic methods require an adequate timestep for eccentric orbits. PR tests
-check the preserved radiation-pressure/PR prescription, including its component-wise
-velocity expression; they do not establish equivalence to another PR model.
+check MERCUDA's radiation-pressure/PR expression, including its component-wise
+velocity term; they do not establish equivalence to another PR model.
 Binary-star drivers and fragmentation remain unimplemented. See
 [technical notes](technical_notes.md) and the [MERCURY6 manual](../README_MERCURY6.md)
 for these method limitations.
+
+## Validation history
+
+Earlier campaigns are summarized here for traceability. Each describes the
+revision it tested; the [latest results](#latest-results) supersede them.
+
+### 5 October 2026: release audit
+
+An external audit found regressions that the earlier campaigns had missed:
+`element6` dropped rows at Julian-date epochs, RADAU lost accuracy with frequent
+output, a HYBRID merger followed by a central impact in the same step lost the
+merger's momentum, and `close6` rejected some valid inputs. Each was reproduced
+independently and fixed, with new tests that fail on the previous programs. The
+RADAU regression uses a `1e-12` bound, tighter than the general trajectory
+criterion; a separate 36-case RADAU sweep over output cadence, tolerance,
+eccentricity and time direction had a worst position error of **1.51e-13 AU**
+against an 80-digit Kepler reference. The upstream GPL-3 license text was added
+in [LICENSE](../LICENSE), with attribution in [NOTICE](../NOTICE).
+
+At revision [`f1c0529`](https://github.com/HBJ1004/MERCUDA/commit/f1c052960ce3d84c6a6475d4f136264a20ab88e0)
+the full CPU campaign passed **13,779 cases**; the complete CPU/CUDA campaign in
+[latest results](#latest-results) followed. The audit is a reminder that a
+successful campaign does not rule out undiscovered defects.
+
+### 4 October 2026: close6 validation
+
+At revision [`ceaf09d`](https://github.com/HBJ1004/MERCUDA/commit/ceaf09dabe09840bac2535b90c11effeec037421)
+the full CPU campaign passed **13,773 cases**, including 785 `close6` checks, and
+all 1,579 `close6` checks passed on both backends with their sanitizer checks.
+The tests exposed and fixed the original reader's mass-dependent velocity error,
+undefined orbital quantities on radial and parabolic paths, and unsafe handling
+of malformed records and capacity boundaries. The integrated force equations
+were unchanged.
+
+### 3 October 2026: first complete campaign
+
+At revision [`3a6c32d`](https://github.com/HBJ1004/MERCUDA/commit/3a6c32d5ee331fbf6cba4a392fd73d7a67ca4133)
+the full CPU campaign passed **12,988 cases** and the combined CPU/CUDA campaign
+**25,964 cases**. In its force matrix, 9,280 cases compared trajectories with an
+independent reference and 11,200 checked that unsupported combinations are
+rejected. The 20 device-sanitizer checks first ran at revision
+[`0aa6bc4`](https://github.com/HBJ1004/MERCUDA/commit/0aa6bc47de88c9861cf605b19fbb5a80f23fb1c8),
+after the Windows debugger interface was enabled. These tests exposed and fixed
+a CUDA encounter-buffer overread, exact-parabolic input and element-conversion
+errors, singular initial configurations, missing encounter records when
+stopping, postprocessing bounds errors, and misleading GPU fallback logging.
+The force equations were unchanged.

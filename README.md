@@ -3,7 +3,7 @@
 A derivative of John E. Chambers' **MERCURY6** with GPU acceleration for BS,
 BS2, RADAU, MVS and HYBRID, solar 1PN relativity, radiation pressure and
 Poynting–Robertson (PR) drag, and Yarkovsky drift. CPU mode also includes
-performance and integration fixes.
+integration fixes and faster setup for large particle counts.
 
 ## Quick start for MERCURY6 users
 
