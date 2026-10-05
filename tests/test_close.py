@@ -105,6 +105,27 @@ class Close(unittest.TestCase):
                 self.assertAlmostEqual(float(row[0]),expected,delta=5e-6)
                 self.assertEqual(row[1],'PARTICLE')
 
+    def test_legacy_time_units_and_selection_tokens(self):
+        # Original close6 read only the leading letter of each answer, and only
+        # the first 25 characters of the first token on a selection line.
+        for units,expected in [('d',.5),('D',.5),('Days',.5),('y',.5/365.25),('YRS',.5/365.25)]:
+            with tempfile.TemporaryDirectory(dir=self.base) as tmp:
+                path=ref.fixture(tmp,records=ref.header()+[ref.encounter()],units=units,relative=True)
+                run(path,executable=ROOT/'close6')
+                self.assertAlmostEqual(float(ref.rows(path/'PLANET.clo')[0][0]),expected,delta=5.1e-6)
+        long='A'*25
+        records=ref.header(names=[long,'PARTICLE'])+[ref.encounter()]
+        path=self.execute(records,names=[long+'BCDE','PARTICLE   trailing note'])
+        self.assertEqual(len(ref.rows(path/(long+'.clo'))),1)
+        self.assertEqual(len(ref.rows(path/'PARTICLE.clo')),1)
+        for units in ['x','weeks']:
+            with tempfile.TemporaryDirectory(dir=self.base) as tmp:
+                path=ref.fixture(tmp,records=ref.header()+[ref.encounter()],units=units)
+                result=run(path,executable=ROOT/'close6',check=False)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn('time units must be days or years',result.stdout+result.stderr)
+                self.assertEqual(list(Path(tmp).glob('*.clo')),[])
+
     def test_fast_encounter_encoding_keeps_event(self):
         records=ref.header()+[ref.encounter(first=([1,0,0],[0,10,0]))]
         path=ref.fixture(self.base,records=records)

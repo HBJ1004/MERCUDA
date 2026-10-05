@@ -158,17 +158,18 @@ contains
       files(j)=trim(line)
     end do
     call setting(unit,line)
+    ! Like the original close6, only the leading letter of an answer matters.
     k=index(line,'=',back=.true.); value=trim(lower(adjustl(line(k+1:))))
-    select case(trim(value))
-    case('days'); style=0
-    case('years'); style=1
+    select case(value(1:1))
+    case('d'); style=0
+    case('y'); style=1
     case default; call bad('time units must be days or years')
     end select
     call setting(unit,line)
     k=index(line,'=',back=.true.); value=trim(lower(adjustl(line(k+1:))))
-    select case(trim(value))
-    case('yes','y'); style=style+2
-    case('no','n')
+    select case(value(1:1))
+    case('y'); style=style+2
+    case('n')
     case default; call bad('relative time must be yes or no')
     end select
     select_all=.true.
@@ -177,8 +178,13 @@ contains
       if(ios==iostat_end) exit
       record_number=record_number+1
       if(ios/=0) call bad('cannot read selection')
-      call valid_name(trim(line))
-      idx=intern(trim(line)); objects(idx)%wanted=.true.; select_all=.false.
+      ! The first token selects a body; mercury6 keeps 25 characters of names.
+      k=index(line,' '); j=index(line,achar(9))
+      if(j>0.and.(k==0.or.j<k)) k=j
+      if(k>1) line=line(:k-1)
+      k=min(25,len_trim(line))
+      call valid_name(line(:k))
+      idx=intern(line(:k)); objects(idx)%wanted=.true.; select_all=.false.
     end do
     close(unit)
     call m_formce(style,line,header,header_length)

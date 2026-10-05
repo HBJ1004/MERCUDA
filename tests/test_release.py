@@ -12,11 +12,13 @@ class Release(unittest.TestCase):
         return ['cpu','cuda'] if load_gpu() else ['cpu']
 
     def test_element_julian_date_cadence(self):
+        # 0.1 d is inexact in binary: mercury6's accumulated output times drift
+        # by ~2e-8 d over 200 outputs, while the final output is the exact stop.
         for sign in (-1,1):
-            for interval,span in ((1,200),(100,1200)):
+            for interval,count in ((1,200),(100,12),(0.1,200)):
                 with self.subTest(sign=sign,interval=interval), tempfile.TemporaryDirectory() as tmp:
                     epoch=2451545.5
-                    path=prepare(tmp,epoch=epoch,start=epoch,stop=epoch+sign*span,interval=interval)
+                    path=prepare(tmp,epoch=epoch,start=epoch,stop=epoch+sign*interval*count,interval=interval)
                     run(path)
                     config=(ROOT/'element.in.sample').read_text()
                     config=re.sub(r'(minimum interval[^=]*=).*',rf'\g<1> {interval}',config)
@@ -26,7 +28,7 @@ class Release(unittest.TestCase):
                     run(path,executable=ROOT/'element6')
                     rows=[l.split() for l in (path/'PARTICLE.aei').read_text().splitlines()
                           if l.split() and l.split()[0][0] in '-0123456789']
-                    self.assertEqual(len(rows),span//interval+1)
+                    self.assertEqual(len(rows),count+1)
                     for n,row in enumerate(rows):
                         self.assertAlmostEqual(float(row[0]),epoch+sign*n*interval,delta=1e-5)
 

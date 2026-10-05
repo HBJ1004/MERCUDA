@@ -138,7 +138,9 @@ c Read parameters used by this programme
         call mio_spl (250,string,nsub,lim)
         c1 = string(lim(1,nsub):lim(2,nsub))
         if (j.eq.1) read (string(lim(1,nsub):lim(2,nsub)),*) teval
-        if (j.eq.1) teval = abs(teval)
+c Upstream's 0.1% slack also absorbs drift in mercury6's accumulated output
+c times when the interval is inexact in binary (e.g. 0.1 d at large JD).
+        if (j.eq.1) teval = abs(teval) * .999d0
         if (j.eq.2.and.(c1.eq.'d'.or.c1.eq.'D')) timestyle = 0
         if (j.eq.3.and.(c1.eq.'y'.or.c1.eq.'Y')) timestyle = timestyle+2
         if (j.eq.4) call m_format (string,timestyle,nel,iel,fout,header,
