@@ -25,13 +25,11 @@ options. The additional choices are:
    uses `yar=<value>` on the body's parameter line in `big.in` or `small.in`
    (AU/day² at 1 AU; default zero). PR uses `b=<beta>` for massless bodies.
    **Use BS or RADAU for PN, PR or Yarkovsky.** `A1`, `A2` and `A3` retain
-   their original cometary meaning. Change earlier MERCUDA Yarkovsky inputs
-   from `A2` to `yar`.
+   their original cometary meaning.
 4. **Run:** `./mercury6`, then `./element6` or `./close6` as usual. Check
    `info.out` to confirm CPU or CUDA actually ran. Custom `mfo_user` forces need CPU.
 5. **Restart or rerun:** dynamics still come from dumps; only the backend can be
-   overridden in ordinary `param.in`. Earlier MERCUDA dumps migrate automatically;
-   unversioned legacy dumps with PN are incompatible.
+   overridden in ordinary `param.in`.
    To rerun from the inputs, run `make rm-gen`, which deletes outputs and dumps;
    save results first. **`make clean` also deletes `.in` files.**
 
