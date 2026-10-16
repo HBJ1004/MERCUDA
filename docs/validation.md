@@ -5,7 +5,7 @@ CPU and CUDA calculations against independent references, and it checks that
 unsupported combinations stop with an error. It does not prove that every
 possible orbit or user-written force is correct.
 
-## Results for v1.0.0
+## Validation results
 
 The full CPU/CUDA campaign was run on the release candidate, revision
 [`8564487`](https://github.com/HBJ1004/MERCUDA/commit/8564487e0ef38042c240e1bf73ab3f9da64fb7ab).
@@ -16,10 +16,18 @@ Sanitizer checks passed for the five algorithms. They found no memory-access
 errors, uninitialized reads, synchronization errors or shared-memory races.
 Counts include inputs that are expected to be rejected.
 
-Two small postprocessing changes were made after that run: `element6` row
-selection for output intervals that are inexact in binary, and the reading of
-`close.in` answers and selection lines. Both are covered by the regression
-suites, which pass all 70 tests in optimized and debug CUDA builds with no skips.
+Four changes were made after that run. The radiation-pressure and PR force was
+corrected to the standard vector law of Burns, Lamy & Soter (1979), with an
+exact speed of light. CPU MVS and TEST runs no longer read an uninitialized
+collision flag, which could make results differ between identical runs.
+`element6` row selection was fixed for output intervals that are inexact in
+binary, and `close.in` answers and selection lines are now read as the original
+program did. The regression suites cover all four. They check the PR force
+against an independent formula and for rotation invariance on CPU and GPU, and
+pass all 71 tests in optimized and debug CUDA builds with no skips. A 1,000-year
+Solar System run now reproduces upstream MERCURY6 bit for bit with BS, MVS and
+HYBRID. The full campaign has not been rerun since these changes, so its PR
+results describe the earlier expression.
 
 Hardware and tools: NVIDIA GeForce RTX 4070 (12 GB), driver 591.86, CUDA
 toolkit 12.6.85 and GNU Fortran 13.3. Passing on one GPU does not certify other
@@ -194,8 +202,9 @@ passing campaign does not rule out undiscovered defects. Arbitrary custom forces
 pathological singular orbits and long chaotic integrations cannot be covered
 exhaustively. MVS cannot resolve close encounters, and the symplectic methods
 need an adequate timestep for eccentric orbits. The PR tests check MERCUDA's
-radiation-pressure and PR expression, including its component-wise velocity
-term. They do not show equivalence to any other PR model. Binary-star drivers
+implementation of one PR model, the vector law with a fixed solar-wind factor.
+They do not validate the physical choice of beta or of the solar-wind factor for
+any particular body. Binary-star drivers
 and fragmentation are not implemented. See the
 [technical notes](technical_notes.md) and the [MERCURY6 manual](../README_MERCURY6.md)
 for these method limitations.

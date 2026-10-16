@@ -59,7 +59,11 @@ All orbits are stable.
 MERCUDA was measured on a pre-release build, revision
 [7e0084d](https://github.com/HBJ1004/MERCUDA/commit/7e0084de7af16fbaaa1b7d7d4c1cfc6717e668d3).
 In that build the Yarkovsky input was named `A2`, which is why the extra-force
-figure uses that label. It is the same term as `yar` in this release. The
+figure uses that label. It is the same term as `yar` in this release. That build
+also used an earlier PR expression with a component-wise transverse velocity.
+Its arithmetic cost is very close to the current vector law, so the timings
+still apply, but the extra-force accuracy columns refer to the earlier
+expression. The
 original [MERCURY6 source](https://github.com/smirik/mercury/tree/aee9e0f6b8e4d359a9ed3607ee12e34a2e2dafac)
 was changed only to raise NMAX from 2,000 to 100,010 for the Newtonian runs. The
 matched-force baseline also changes MFO_PN, MFO_PR, MFO_NGF and MIO_IN, for the

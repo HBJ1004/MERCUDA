@@ -123,20 +123,23 @@ their output files, so select a subset of bodies for large ensembles.
 
 Radiation pressure and PR drag use `b=<beta>` on a body's parameter line. Beta
 is dimensionless and defaults to zero. Bodies with nonzero mass receive no PR
-acceleration. With heliocentric distance r, radial velocity
+acceleration. With heliocentric position **r**, velocity **v**, radial velocity
 `v_r = (r_vector · v)/r`, and `GM = k^2` (the Gaussian solar value), the
-acceleration is
+acceleration is the vector law of
+[Burns, Lamy & Soter (1979)](https://doi.org/10.1016/0019-1035(79)90050-2)
+with a solar-wind factor on the velocity-dependent terms:
 
 ```
-v_t,k = v_k (1 - x_k/r)        (k = x, y, z, component-wise)
- a_PR = (GM beta/r^2) [(1 - 2 (1+sw) v_r/c) r_hat - (1+sw) v_t/c]
+a_PR = (GM beta/r^2) [(1 - (1+sw) v_r/c) r_hat - (1+sw) v_vector/c]
 ```
 
-with solar-wind factor `sw = 0.3` and `c = 173.1 AU/day`. Written in this
-radial and transverse form, the standard formula of
-[Burns, Lamy & Soter (1979)](https://doi.org/10.1016/0019-1035(79)90050-2) has
-`v_t = v - v_r r_hat`. MERCUDA uses the component-wise expression above instead.
-CPU (`mfo_pr`) and CUDA evaluate the same expression.
+The solar-wind factor is `sw = 0.3`, following
+[Liou, Zook & Jackson (1995)](https://doi.org/10.1006/icar.1995.1120) and
+[Klačka et al. (2012)](https://doi.org/10.1111/j.1365-2966.2012.20321.x).
+`c = 299792458 m/s`, converted exactly to 173.14463267424034 AU/day with the
+IAU 2012 astronomical unit, the same value used for PN. The force is independent
+of the orientation of the coordinate frame. CPU (`mfo_pr`) and CUDA evaluate the
+same expression.
 
 Use the existing `include relativity in integration = yes` setting for solar
 Schwarzschild 1PN (PN). With heliocentric position **r**, velocity **v**, and
@@ -232,7 +235,9 @@ MVS and HYBRID keep their fixed production timestep and write output on that
 grid. An output interval smaller than the timestep cannot create intermediate
 states. Requested epochs that have passed are advanced so that later output
 continues. BS is used to reach an off-grid start epoch before a fixed-step run
-begins. The encounter interpolation and impact timing corrections apply to CPU
+begins. Every fixed-step integrator reports its collision status each step, so a
+run without collisions never repeats the output header or reconverts its
+coordinates. The encounter interpolation and impact timing corrections apply to CPU
 and CUDA. HYBRID close-encounter BS2 substeps check their progress against the
 local encounter clock on both backends, so a large Julian epoch does not reject
 substeps that can be represented. The central-impact time is still a two-body
