@@ -19,7 +19,7 @@ def load_cpu():
     text='\n'.join(routine(source,name) for name in
                   ['mfo_all','mfo_grav','mfo_obl','mfo_ngf','mfo_pr','mfo_pn','mfo_user','mco_x2el'])
     text+='\n'+routine((ROOT/'element6.for').read_text(),'mco_x2el').replace('subroutine mco_x2el','subroutine element_x2el')+'\n'
-    text+='\n'+routine((ROOT/'tests/fixtures/original_pr.for').read_text(),'mfo_pr').replace('subroutine mfo_pr','subroutine original_pr')+'\n'
+    text+='\n'
     (build/'forces.for').write_text(text)
     flags=shlex.split(os.environ.get('MERCURY_TEST_FFLAGS',
                      '-O2 -ffp-contract=off -ffixed-line-length-none'))

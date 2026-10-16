@@ -1,18 +1,17 @@
 """Independent scientific references. Never imports Mercury force routines.
 
 J2/J4/J6 are differentiated from the Legendre potential, rather than copied
-from Mercury's acceleration polynomials. PR deliberately implements the agreed
-component-wise prescription, not the usual rotationally invariant vector law.
+from Mercury's acceleration polynomials. PR is the Burns, Lamy & Soter (1979)
+vector law with a solar-wind factor on the velocity-dependent terms.
 """
 import math
-import struct
 import mpmath as mp
 import numpy as np
 import rebound
 
 MU = 2.959122082855911e-4
 LIGHT = 299792458.0 * 86400.0 / 149597870700.0
-PR_LIGHT = struct.unpack('f', struct.pack('f', 173.1))[0]
+SOLAR_WIND = 0.3
 mp.mp.dps = 80
 
 
@@ -96,10 +95,9 @@ def high_precision_force(masses, positions, velocities, ngf, jcen, nbig, pn):
                                      ((4*m[0]/radius-speed2)*x[i][k]+4*dot*v[i][k]))
             if m[i] == 0 and ng[i][3]:
                 vr = dot/radius
-                # c is rounded as default REAL in the preserved Fortran routine.
-                c = mp.mpf(PR_LIGHT)
-                terms[i][k].append(mp.mpf(MU)*ng[i][3]/(c*radius**2)*
-                    ((c-mp.mpf('2.6')*vr)*x[i][k]/radius-mp.mpf('1.3')*v[i][k]*(1-x[i][k]/radius)))
+                c, w = mp.mpf(LIGHT), 1+mp.mpf(SOLAR_WIND)
+                terms[i][k].append(mp.mpf(MU)*ng[i][3]/radius**2*
+                    ((1-w*vr/c)*x[i][k]/radius-w*v[i][k]/c))
     obl = [[mp.mpf(0)]*3 for _ in range(n)]
     for i in range(1,n):
         for k in range(3):
@@ -134,7 +132,8 @@ def extras(mu, x, v, params, jcen=(0,0,0), pn=False):
     if params.get('yar',0): a += params['yar']/r**2*t/tn
     if pn: a += mu/(LIGHT**2*r**3)*((4*mu/r-np.dot(v,v))*x+4*rv*v)
     if params.get('b',0):
-        a += MU*params['b']/(PR_LIGHT*r*r)*((PR_LIGHT-2.6*rv/r)*x/r-1.3*v*(1-x/r))
+        w = 1+SOLAR_WIND
+        a += MU*params['b']/(r*r)*((1-w*rv/(r*LIGHT))*x/r-w*v/LIGHT)
     return a
 
 

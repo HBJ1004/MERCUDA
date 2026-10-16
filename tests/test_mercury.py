@@ -15,18 +15,42 @@ class Forces(unittest.TestCase):
     def setUpClass(cls):
         cls.cpu=load_cpu(); cls.gpu=load_gpu()
 
-    def test_pr_preserved(self):
-        self.assertEqual(routine((ROOT/'mercury6_2.for').read_text(),'mfo_pr'),
-                         routine((ROOT/'tests/fixtures/original_pr.for').read_text(),'mfo_pr'))
+    def test_pr_vector_law_and_rotation_invariance(self):
+        # Burns, Lamy & Soter (1979) with a solar-wind factor on the drag terms:
+        # a = beta*GM/r^2 [(1-(1+sw) v_r/c) r_hat - (1+sw) v/c], exact c in AU/day.
+        light=299792458*86400/149597870700; sw=.3
+        def expected(m,x,v,beta):
+            if m: return [0.,0.,0.]
+            r=math.sqrt(sum(k*k for k in x)); vr=sum(a*b for a,b in zip(x,v))/r
+            f=MU*beta/r**2
+            return [f*((1-(1+sw)*vr/light)*p/r-(1+sw)*u/light) for p,u in zip(x,v)]
+        def evaluate(m,x,v,ng):
+            n=len(m); out=arr([0.]*(3*n))
+            self.cpu.mfo_pr_(C.byref(I(n)),C.byref(I(n)),arr(m),arr(x),arr(v),out,arr(ng))
+            return list(out)
         rng=random.Random(7); n=64
-        m=arr([MU]+[0 if i%2 else 1e-9 for i in range(n-1)])
-        x=arr([rng.uniform(-4,4) for _ in range(3*n)])
-        v=arr([rng.uniform(-.1,.1) for _ in range(3*n)])
-        ng=arr([rng.uniform(-.01,.1) for _ in range(4*n)])
-        actual,expected=arr([0.]*(3*n)),arr([0.]*(3*n))
-        self.cpu.mfo_pr_(C.byref(I(n)),C.byref(I(5)),m,x,v,actual,ng)
-        self.cpu.original_pr_(C.byref(I(n)),C.byref(I(5)),m,x,v,expected,ng)
-        self.assertEqual(bytes(actual),bytes(expected))
+        m=[MU]+[0. if i%2 else 1e-9 for i in range(n-1)]
+        x=[0.,0.,0.]+[rng.uniform(-4,4) for _ in range(3*(n-1))]
+        v=[0.,0.,0.]+[rng.uniform(-.1,.1) for _ in range(3*(n-1))]
+        ng=[0.]*4+[c for j in range(1,n) for c in (0.,0.,0.,rng.uniform(1e-4,.5))]
+        a=evaluate(m,x,v,ng)
+        for j in range(1,n):
+            ref=expected(m[j],x[3*j:3*j+3],v[3*j:3*j+3],ng[4*j+3])
+            scale=max(abs(c) for c in ref) or 1.
+            for got,want in zip(a[3*j:3*j+3],ref): self.assertLess(abs(got-want),1e-14*scale)
+        # Rotating the frame must rotate the acceleration: a(Rx,Rv) = R a(x,v).
+        ang=[.7,-1.3,2.1]
+        def rot(c):
+            for axis,t in enumerate(ang):
+                i,k=[q for q in range(3) if q!=axis]; ct,st=math.cos(t),math.sin(t)
+                c=list(c); c[i],c[k]=ct*c[i]-st*c[k],st*c[i]+ct*c[k]
+            return c
+        rx=[c for j in range(n) for c in rot(x[3*j:3*j+3])]
+        rv=[c for j in range(n) for c in rot(v[3*j:3*j+3])]
+        ra=evaluate(m,rx,rv,ng)
+        for j in range(1,n):
+            want=rot(a[3*j:3*j+3]); scale=max(abs(c) for c in want) or 1.
+            for got,w in zip(ra[3*j:3*j+3],want): self.assertLess(abs(got-w),1e-13*scale)
 
     def test_pn_analytic_and_reversal(self):
         x=[0,0,0,.4,.3,.1]; v=[0,0,0,-.01,.025,.003]; m=[MU,0]; n=I(2)
@@ -121,6 +145,21 @@ class Integration(unittest.TestCase):
                 for val,ref in zip(a[name][key],b[name][key]):
                     if reverse and key=='v': ref=-ref
                     self.assertLess(abs(val-ref),tol,(name,key,val,ref))
+
+    def test_fixed_step_runs_without_collisions_stay_compact(self):
+        # mdt_mvs never reported its collision flag, so mal_hcon read an
+        # uninitialized value and could treat every step as a collision:
+        # rewriting full headers and round-tripping the MVS corrector.
+        big=[body('E',mass=3e-6,a=1,e=.016),body('J',mass=.001,a=5.2,e=.04)]
+        for algorithm in ['MVS','TEST','HYBRID']:
+            with self.subTest(algorithm=algorithm):
+                p=self.case(algorithm,algorithm=algorithm,big=big,small=[body('P',a=2.5)],
+                            stop=400,interval=40,step=2)
+                records=[line[2:3] for line in (p/'xv.out').read_bytes().split(b'\n')
+                         if line.startswith(b'\x0c')]
+                # One full header, then one compact record per output epoch.
+                self.assertEqual(records.count(b'a'),1,records)
+                self.assertEqual(records.count(b'b'),11,records)
 
     def test_backward_velocity_reversal_all_methods(self):
         for method in ['BS','BS2','RADAU','MVS','HYBRID']:

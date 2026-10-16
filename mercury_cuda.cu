@@ -11,9 +11,8 @@
 namespace {
 constexpr int THREADS=256;
 constexpr double K2=2.959122082855911e-4;
-constexpr double C_PN=299792458.0*86400.0/1.495978707e11;
-// Preserve the original Fortran assignment c = 173.1 (default REAL literal).
-constexpr double C_PR=static_cast<double>(173.1f);
+// Speed of light in AU/day, from the exact SI value and the IAU 2012 au.
+constexpr double C_LIGHT=299792458.0*86400.0/1.495978707e11;
 struct Config { int n,nbig,nmass,ngflag; double mu,j2,j4,j6; } cfg;
 bool pn_enabled=false;
 int algorithm=2;
@@ -124,19 +123,15 @@ __device__ void nongrav(Config c,int j,const double r[3],double r2,double inv,
             for(int k=0;k<3;k++) a[k]+=f*t[k];
         }
     }
-    // Radiation pressure/PR background: Burns, Lamy & Soter (1979),
-    // Icarus 40, 1-48; https://doi.org/10.1016/0019-1035(79)90050-2.
-    // Standard vector force is beta*mu/r^2*((1-vr/c)*r_hat-v/c).
-    // Compatibility: match supplied mfo_pr exactly, NOT that standard
-    // formula: component-wise Vt, sw=0.3, C_PR default REAL, K2 and
-    // massless-only gating. Includes radiation pressure as well as drag.
-    if((c.ngflag==2||c.ngflag==3)&&m[j]==0) {
+    // Radiation pressure and PR drag (Burns, Lamy & Soter 1979, Icarus 40,
+    // 1-48) with solar-wind factor sw=0.3 on the velocity terms, as mfo_pr:
+    // a = beta*GM/r^2*((1-(1+sw)*vr/c)*r_hat-(1+sw)*v/c), massless bodies only.
+    if((c.ngflag==2||c.ngflag==3)&&m[j]==0&&ng[3*c.n+j]!=0) {
+        const double sw=0.3;
         double radius=sqrt(r2),vr=rv/radius;
-        double f=K2*ng[3*c.n+j]/(C_PR*radius*radius);
-        for(int k=0;k<3;k++) {
-            double vt=u[k]*(1.0-r[k]/radius);
-            a[k]+=f*((C_PR-1.3*2.0*vr)*r[k]/radius-1.3*vt);
-        }
+        double f=K2*ng[3*c.n+j]/(radius*radius);
+        for(int k=0;k<3;k++)
+            a[k]+=f*((1.0-(1.0+sw)*vr/C_LIGHT)*r[k]/radius-(1.0+sw)*u[k]/C_LIGHT);
     }
 }
 
@@ -182,7 +177,7 @@ template<bool PN> __global__ void force_kernel(Config c,const double* pos,
     // physical velocities, no planetary PN cross terms/spin/higher orders.
     if(PN) {
         double v2=u[0]*u[0]+u[1]*u[1]+u[2]*u[2];
-        double f=c.mu*inv3/(C_PN*C_PN),radial=4.0*c.mu*inv-v2;
+        double f=c.mu*inv3/(C_LIGHT*C_LIGHT),radial=4.0*c.mu*inv-v2;
         for(int k=0;k<3;k++) a[k]+=f*(radial*r[k]+4.0*rv*u[k]);
     }
     for(int k=0;k<3;k++) {

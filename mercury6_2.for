@@ -663,6 +663,7 @@ c Initialize variables. DTFLAG = 0/2: first call ever/normal
       dtdump = abs(h0) * ndump
       dtfun  = abs(h0) * nfun
       dtflag = 0
+      colflag = 0
       nstored = 0
       hby2 = 0.500001d0 * abs(h0)
 c
@@ -4026,6 +4027,8 @@ c
 c
       hby2 = .5d0 * h0
       nclo = 0
+c MVS cannot resolve collisions, so it never reports one to the driver.
+      colflag = 0
 c
 c If accelerations from previous call are not valid, calculate them now,
 c and also the Jacobi coordinates XJ, and effective central masses GM.
@@ -5260,7 +5263,7 @@ c
       integer nbod,nbig,j
       real*8 m(nbod),x(3,nbod),v(3,nbod),a(3,nbod)
       real*8 r2,ri,rv,v2,f,c,radial
-c Central-mass Schwarzschild 1PN in AU/day. PR keeps its own constant.
+c Central-mass Schwarzschild 1PN in AU/day.
       c = 299792458.d0 * 86400.d0 / (AU * .01d0)
       a = 0.d0
       do j = 2, nbod
@@ -5281,18 +5284,18 @@ c      MFO_PR.FOR    (ErikSoft   3 October 2000)
 c
 c%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c
-c Author: John E. Chambers
+c Author: John E. Chambers. Radiation force implementation: Hangbin Jo.
 c
-c Calculates radiation pressure and Poynting-Robertson drag for a set
-c of NBOD bodies (NBIG of which are Big).
-c Physical background: Burns, Lamy & Soter (1979), Icarus 40, 1-48,
-c https://doi.org/10.1016/0019-1035(79)90050-2
-c Standard radiation force: beta*mu/r^2*[(1-vr/c)*r_hat-v/c].
-c Compatibility note: this supplied routine is NOT that literal formula.
-c It retains component-wise Vt(k)=v(k)*(1-x(k)/r), sw=0.3,
-c c=173.1 (default REAL), K2 solar normalization, and massless gating.
-c Its acceleration includes radiation pressure as well as drag.
-c The subroutine itself is byte-for-byte preserved from the supplied code.
+c Calculates radiation pressure and Poynting-Robertson drag for massless
+c bodies, following Burns, Lamy & Soter (1979), Icarus 40, 1-48,
+c https://doi.org/10.1016/0019-1035(79)90050-2, with a solar-wind factor
+c sw on the velocity-dependent terms (Liou, Zook & Jackson 1995, Icarus
+c 116, 186; Klacka et al. 2012, MNRAS 421, 943):
+c
+c   a = beta GM/r^2 [ (1 - (1+sw) v_r/c) r_hat - (1+sw) v/c ]
+c
+c GM is K2, beta is ngf(4,j), v_r is the radial velocity and c is the
+c speed of light in AU/day. Massive bodies receive no PR acceleration.
 c
 c This routine should not be called from the symplectic algorithm MAL_MVS
 c or the conservative Bulirsch-Stoer algorithm MAL_BS2.
@@ -5302,7 +5305,6 @@ c ===
 c------------------------------------------------------------------------------
 c
       subroutine mfo_pr (nbod,nbig,m,x,v,a,ngf)
-
 c
       implicit none
       include 'mercury.inc'
@@ -5313,64 +5315,27 @@ c Input/Output
 c
 c Local
       integer j
-      real*8 Vt(3,nbod),D(nbod),Qpr,JH(nbod),c,beta,Vr(nbod),sw
+      real*8 r,vr,f,c,sw
+      parameter (sw = .3d0)
 c------------------------------------------------------------------------------
 c
-c     Qpr is co-efficient of PR-Drag force, in here its value is 1.
-
-c     c = speed of light (AU/Day)
-
-      c = 173.1
-
-c      open (81, file='asdf6.txt',status='replace')
-
+c Speed of light in AU/day, from the exact SI value and the IAU 2012 au.
+      c = 299792458.d0 * 86400.d0 / (AU * .01d0)
+c
       do j = 2, nbod
-
-c     To increae speed of calculation, it is required to remove the process that
-c     calculate PR-effect on massive bodies(e.g. planets) because realistically
-c     they do not affect by PR-effect.
-
-      if(m(j).ne.0) then
-
-         a(1,j)=0.d0
-         a(2,j)=0.d0
-         a(3,j)=0.d0
-
-      else
-
-c     D(j) is distance from Sun
-      
-      D(j) = sqrt(x(1,j)**2.d0+x(2,j)**2.d0+x(3,j)**2.d0)
-
-c     JH = - G*M_sun*beta / (D^2 * c)
-c     K2 = Gaussian Gravitational Constant Square = G*M_sun
-
-      JH(j)= K2*ngf(4,j) / (c*D(j)**2.d0)
-
-c     Vr is radial factor of V(velocity)
-
-      Vr(j) = (v(1,j)*x(1,j)+v(2,j)*x(2,j)+v(3,j)*x(3,j)) / D(j)
-
-c     sw = solar wind 
-      Vt(1,j)=v(1,j)*(1.d0-x(1,j)/D(j))
-      Vt(2,j)=v(2,j)*(1.d0-x(2,j)/D(j))
-      Vt(3,j)=v(3,j)*(1.d0-x(3,j)/D(j))
-      sw=0.3d0
-c     Revised by Hangbin Jo
-c     Based on Burns et al. (1979), Liou & Zook (1995), Klacka et al. (2012)
-      a(1,j)= JH(j)*((c-(1.d0+sw)*2.d0*Vr(j))*x(1,j)/D(j)
-     %         -(1.d0+sw)*Vt(1,j))
-      a(2,j)= JH(j)*((c-(1.d0+sw)*2.d0*Vr(j))*x(2,j)/D(j)
-     %         -(1.d0+sw)*Vt(2,j))
-      a(3,j)= JH(j)*((c-(1.d0+sw)*2.d0*Vr(j))*x(3,j)/D(j)
-     %         -(1.d0+sw)*Vt(3,j))
-
-      endif
-
-c       write(81,*) j, nbod, a(1,j)      
-
+        if (m(j).ne.0.d0.or.ngf(4,j).eq.0.d0) then
+          a(1,j) = 0.d0
+          a(2,j) = 0.d0
+          a(3,j) = 0.d0
+        else
+          r = sqrt(x(1,j)*x(1,j) + x(2,j)*x(2,j) + x(3,j)*x(3,j))
+          vr = (x(1,j)*v(1,j) + x(2,j)*v(2,j) + x(3,j)*v(3,j)) / r
+          f = K2 * ngf(4,j) / (r*r)
+          a(1,j) = f*((1.d0-(1.d0+sw)*vr/c)*x(1,j)/r-(1.d0+sw)*v(1,j)/c)
+          a(2,j) = f*((1.d0-(1.d0+sw)*vr/c)*x(2,j)/r-(1.d0+sw)*v(2,j)/c)
+          a(3,j) = f*((1.d0-(1.d0+sw)*vr/c)*x(3,j)/r-(1.d0+sw)*v(3,j)/c)
+        end if
       end do
-
 c
 c------------------------------------------------------------------------------
 c
